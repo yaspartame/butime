@@ -85,6 +85,16 @@
           </label>
         </div>
 
+        <div class="settings-section">
+          <h3 class="settings-section-title">EXPORT / IMPORT</h3>
+          <p class="settings-desc">Export all instances and settings as a JSON file, or import a previously exported file to restore everything.</p>
+          <div class="settings-row">
+            <button class="btn btn-cancel" id="settingsExportBtn">⬇ EXPORT JSON</button>
+            <button class="btn btn-cancel" id="settingsImportBtn">⬆ IMPORT JSON</button>
+            <input type="file" id="settingsImportFile" accept=".json,application/json" style="display:none">
+          </div>
+        </div>
+
         <div class="settings-actions">
           <button class="btn btn-cancel" id="settingsBackBtn">← BACK</button>
           <button class="btn btn-save" id="settingsSaveBtn">SAVE</button>
@@ -305,6 +315,7 @@
 
   </div> <!-- end .app-body -->
 
+  <script src="../back/db.js"></script>
   <script src="../back/app.js"></script>
 </body>
 </html>

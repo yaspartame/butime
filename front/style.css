@@ -320,6 +320,12 @@ html, body {
   margin-top: 16px;
 }
 
+.settings-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .input-with-unit {
   display: flex;
   align-items: center;
