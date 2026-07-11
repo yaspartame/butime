@@ -107,7 +107,7 @@ html, body {
 /* ===== APP LAYOUT ===== */
 .app-body {
   display: flex;
-  height: calc(100vh - 52px);
+  height: calc(100dvh - 52px);
   overflow: hidden;
 }
 
@@ -931,15 +931,18 @@ html, body {
 .modal-close {
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   cursor: pointer;
-  font-size: 16px;
-  padding: 2px;
+  font-size: 18px;
+  padding: 6px 8px;
   line-height: 1;
+  border-radius: var(--radius);
+  transition: all 0.15s;
 }
 
 .modal-close:hover {
   color: var(--text-primary);
+  background: var(--bg-tertiary);
 }
 
 .modal-body {
@@ -1312,57 +1315,6 @@ input[type="time"].form-input {
 }
 
 /* ===== RESPONSIVE ===== */
-@media (max-width: 768px) {
-  :root {
-    --hour-height: 44px;
-    --day-min-width: 85px;
-    --gutter-width: 44px;
-  }
-
-  .header {
-    padding: 8px 10px;
-  }
-
-  .add-btn {
-    padding: 5px 10px;
-    font-size: 10px;
-  }
-
-  .week-label {
-    font-size: 10px;
-    min-width: 80px;
-  }
-
-  .nav-btn {
-    padding: 3px 6px;
-    font-size: 12px;
-  }
-
-  .view-current {
-    font-size: 10px;
-    padding: 5px 20px 5px 8px;
-  }
-
-  .modal {
-    max-width: 100%;
-    margin: 0;
-    max-height: 100vh;
-    height: 100vh;
-  }
-
-  .modal-wide {
-    max-width: 100%;
-  }
-
-  .modal-overlay {
-    padding: 0;
-  }
-
-  .todo-container {
-    padding: 12px;
-  }
-}
-
 @media (max-width: 480px) {
   :root {
     --hour-height: 40px;
@@ -1530,7 +1482,7 @@ input[type="time"].form-input {
   }
 
   .header {
-    padding: 8px 10px;
+    padding: 6px 8px;
   }
 
   .header-center {
@@ -1538,30 +1490,75 @@ input[type="time"].form-input {
   }
 
   .add-btn {
-    padding: 5px 10px;
+    padding: 5px 8px;
     font-size: 10px;
   }
 
   .week-label {
-    font-size: 10px;
-    min-width: 80px;
+    font-size: 9px;
+    min-width: 60px;
   }
 
   .nav-btn {
-    padding: 3px 6px;
-    font-size: 12px;
+    padding: 3px 5px;
+    font-size: 11px;
   }
 
+  /* Sidebar: shrink and auto-collapse on mobile */
+  .sidebar {
+    width: 160px;
+    min-width: 160px;
+  }
+
+  .sidebar-collapse-btn {
+    font-size: 16px;
+    padding: 6px 5px;
+  }
+
+  /* Modal: use dvh for proper mobile viewport */
   .modal {
     max-width: 100%;
     margin: 0;
     border-radius: 0;
-    max-height: 100vh;
-    height: 100vh;
+    max-height: 100dvh;
+    height: 100dvh;
+  }
+
+  .modal-wide {
+    max-width: 100%;
   }
 
   .modal-overlay {
     padding: 0;
+  }
+
+  /* Bigger close button for touch */
+  .modal-close {
+    font-size: 22px;
+    padding: 6px;
+  }
+
+  .sidebar-title {
+    font-size: 8px;
+  }
+
+  .todo-container {
+    padding: 12px;
+  }
+
+  .view-panel {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  /* Settings page mobile fixes */
+  .settings-container {
+    padding: 20px 14px;
+  }
+
+  .app-body {
+    height: calc(100dvh - 44px);
   }
 }
 
@@ -1600,5 +1597,23 @@ input[type="time"].form-input {
 
   .event-block .event-time {
     font-size: 7px;
+  }
+
+  .sidebar {
+    width: 140px;
+    min-width: 140px;
+  }
+
+  .sidebar-collapse-btn {
+    font-size: 18px;
+    padding: 8px 4px;
+  }
+
+  .todo-container {
+    padding: 8px;
+  }
+
+  .todo-item {
+    padding: 8px 10px;
   }
 }

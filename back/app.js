@@ -285,6 +285,8 @@ function shakeBtn(btn) { btn.style.animation = 'shake 0.3s'; setTimeout(() => { 
 
 /* ===== INIT ===== */
 migrateOldData();
+// Auto-collapse sidebar on mobile
+if (window.innerWidth < 768) document.getElementById('sidebar').classList.add('collapsed');
 renderSidebar();
 render();
 updateAlertBadge();
