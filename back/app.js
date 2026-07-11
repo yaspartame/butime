@@ -22,89 +22,6 @@ let state = {
   currentView: 'timetable',
 };
 
-function genId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
-
-/* ===== INSTANCES ===== */
-function getInstances() {
-  try { return JSON.parse(localStorage.getItem('butime_instances')) || []; }
-  catch { return []; }
-}
-function saveInstances(list) {
-  localStorage.setItem('butime_instances', JSON.stringify(list));
-}
-function getActiveInstanceId() {
-  return localStorage.getItem('butime_activeInstance') || 'default';
-}
-function setActiveInstanceId(id) {
-  localStorage.setItem('butime_activeInstance', id);
-}
-function getInstanceData(instanceId) {
-  try { return JSON.parse(localStorage.getItem('butime_data_' + instanceId)) || { categories: [], events: [], todos: [] }; }
-  catch { return { categories: [], events: [], todos: [] }; }
-}
-function saveInstanceData(instanceId, data) {
-  localStorage.setItem('butime_data_' + instanceId, JSON.stringify(data));
-}
-function getActiveData() { return getInstanceData(getActiveInstanceId()); }
-function saveActiveData(data) { saveInstanceData(getActiveInstanceId(), data); }
-function getCategories() { return getActiveData().categories; }
-function getEvents() { return getActiveData().events; }
-function getTodos() { return getActiveData().todos; }
-function saveCategories(cats) { const d = getActiveData(); d.categories = cats; saveActiveData(d); }
-function saveEvents(events) { const d = getActiveData(); d.events = events; saveActiveData(d); }
-function saveTodos(todos) { const d = getActiveData(); d.todos = todos; saveActiveData(d); }
-
-/* ===== INSTANCE MIGRATION ===== */
-function migrateOldData() {
-  const instances = getInstances();
-  if (instances.length > 0) return;
-  const oldCats = (() => { try { return JSON.parse(localStorage.getItem('butime_categories')) || []; } catch { return []; } })();
-  const oldEvents = (() => { try { return JSON.parse(localStorage.getItem('butime_events')) || []; } catch { return []; } })();
-  const oldTodos = (() => { try { return JSON.parse(localStorage.getItem('butime_todos')) || []; } catch { return []; } })();
-  localStorage.removeItem('butime_categories');
-  localStorage.removeItem('butime_events');
-  localStorage.removeItem('butime_todos');
-  saveInstances([{ id: 'default', name: 'Default' }]);
-  setActiveInstanceId('default');
-  saveInstanceData('default', {
-    categories: oldCats.length ? oldCats : [{ id: genId(), name: 'Task', color: '#6b7db3' }],
-    events: oldEvents, todos: oldTodos,
-  });
-}
-
-/* ===== SETTINGS ===== */
-function getSettings() {
-  try { return JSON.parse(localStorage.getItem('butime_settings')) || getDefaultSettings(); }
-  catch { return getDefaultSettings(); }
-}
-function getDefaultSettings() { return { defaultNearImmediate: 24, defaultNearScheduled: 48, perTodoUrgency: false }; }
-function saveSettings(s) { localStorage.setItem('butime_settings', JSON.stringify(s)); }
-
-/* ===== TODO DEADLINE STATUS ===== */
-function getTodoStatus(todo) {
-  if (!todo.deadline || todo.type === 'casual') return { color: '#5a6380', near: false };
-  const settings = getSettings();
-  const deadline = new Date(todo.deadline).getTime();
-  const now = Date.now();
-  const diff = deadline - now;
-  if (todo.type === 'immediate') {
-    const threshold = todo.nearThreshold ? todo.nearThreshold * 3600000 : settings.defaultNearImmediate * 3600000;
-    if (diff < threshold) return { color: '#e0535a', near: true };
-    return { color: '#d4a84b', near: false };
-  }
-  if (todo.type === 'scheduled') {
-    const threshold = todo.nearThreshold ? todo.nearThreshold * 3600000 : settings.defaultNearScheduled * 3600000;
-    if (diff < threshold) return { color: '#d4884b', near: true };
-    return { color: '#d4a84b', near: false };
-  }
-  return { color: '#5a6380', near: false };
-}
-function hasNearDeadlineTodos() {
-  return getTodos().some(t => !t.completed && t.deadline && getTodoStatus(t).near);
-}
-
 /* ===== DATE HELPERS ===== */
 function getMonday(date) {
   const d = new Date(date);
@@ -206,6 +123,44 @@ document.getElementById('settingsSaveBtn').addEventListener('click', () => {
     perTodoUrgency: document.getElementById('setPerTodoUrgency').checked,
   });
   switchView('timetable'); renderTodoList(); updateAlertBadge();
+});
+
+/* ===== EXPORT / IMPORT ===== */
+document.getElementById('settingsExportBtn').addEventListener('click', () => {
+  const json = exportAllData();
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `butime-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('settingsImportBtn').addEventListener('click', () => {
+  document.getElementById('settingsImportFile').click();
+});
+
+document.getElementById('settingsImportFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      importAllData(ev.target.result);
+      // Refresh everything
+      renderSidebar();
+      render();
+      renderTodoList();
+      updateAlertBadge();
+      switchView('timetable');
+    } catch (err) {
+      alert('Import failed: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  // Reset so the same file can be re-imported
+  e.target.value = '';
 });
 
 /* ===== RENDER: TIMETABLE ===== */
