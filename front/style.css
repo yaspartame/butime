@@ -1482,26 +1482,67 @@ input[type="time"].form-input {
   }
 
   .header {
-    padding: 6px 8px;
+    padding: 6px 6px;
+    gap: 4px;
   }
 
   .header-center {
-    display: none;
+    position: static;
+    transform: none;
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .view-current {
+    font-size: 9px;
+    padding: 4px 18px 4px 6px;
+    letter-spacing: 1px;
+    background-position: right 5px center;
+    background-size: 6px 4px;
+  }
+
+  .view-option {
+    font-size: 10px;
+    padding: 6px 8px;
   }
 
   .add-btn {
-    padding: 5px 8px;
-    font-size: 10px;
+    padding: 4px 6px;
+    font-size: 9px;
+    letter-spacing: 1px;
   }
 
   .week-label {
-    font-size: 9px;
-    min-width: 60px;
+    font-size: 8px;
+    min-width: 40px;
+    letter-spacing: 0.5px;
   }
 
   .nav-btn {
-    padding: 3px 5px;
-    font-size: 11px;
+    padding: 3px 4px;
+    font-size: 10px;
+  }
+
+  .header-left {
+    gap: 3px;
+  }
+
+  .header-right {
+    gap: 4px;
+  }
+
+  .view-selector {
+    position: relative;
+  }
+
+  .view-dropdown {
+    position: fixed;
+    left: 50%;
+    top: 44px;
+    transform: translateX(-50%);
+    min-width: 160px;
+    z-index: 100;
   }
 
   /* Sidebar: shrink and auto-collapse on mobile */
