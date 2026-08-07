@@ -1,15 +1,9 @@
-/* ===== BUTIME DATA LAYER ===== *
- * Handles all localStorage persistence,
- * multi-instance data, settings, and JSON export/import.
- * Load this BEFORE app.js in the HTML.
- * ================================= */
+// legacy data layer
 
-/* ---- ID generation ---- */
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-/* ---- Instances ---- */
 function getInstances() {
   try { return JSON.parse(localStorage.getItem('butime_instances')) || []; }
   catch { return []; }
@@ -25,7 +19,6 @@ function setActiveInstanceId(id) {
   localStorage.setItem('butime_activeInstance', id);
 }
 
-/* ---- Per-instance data ---- */
 function getInstanceData(instanceId) {
   try { return JSON.parse(localStorage.getItem('butime_data_' + instanceId)) || { categories: [], events: [], todos: [] }; }
   catch { return { categories: [], events: [], todos: [] }; }
@@ -37,7 +30,6 @@ function saveInstanceData(instanceId, data) {
 function getActiveData() { return getInstanceData(getActiveInstanceId()); }
 function saveActiveData(data) { saveInstanceData(getActiveInstanceId(), data); }
 
-/* ---- Active instance shortcuts ---- */
 function getCategories() { return getActiveData().categories; }
 function getEvents() { return getActiveData().events; }
 function getTodos() { return getActiveData().todos; }
@@ -46,7 +38,6 @@ function saveCategories(cats) { const d = getActiveData(); d.categories = cats; 
 function saveEvents(events) { const d = getActiveData(); d.events = events; saveActiveData(d); }
 function saveTodos(todos) { const d = getActiveData(); d.todos = todos; saveActiveData(d); }
 
-/* ---- Migration from old flat format ---- */
 function migrateOldData() {
   const instances = getInstances();
   if (instances.length > 0) return;
@@ -72,7 +63,62 @@ function getSettings() {
 function getDefaultSettings() { return { defaultNearImmediate: 24, defaultNearScheduled: 48, perTodoUrgency: false }; }
 function saveSettings(s) { localStorage.setItem('butime_settings', JSON.stringify(s)); }
 
-/* ---- Todo urgency status ---- */
+// BBU Data layer
+// They do not share the same data as legacy
+// And the legacy data does not disappear if bbu mode is chosen
+
+function getBbuTasksForInstance(instanceId) {
+  try { const d = JSON.parse(localStorage.getItem('butime_bbu_data_' + instanceId)) || {}; return d.bbuTasks || []; }
+  catch { return []; }
+}
+function saveBbuTasksForInstance(instanceId, tasks) {
+  let d = {};
+  try { d = JSON.parse(localStorage.getItem('butime_bbu_data_' + instanceId)) || {}; } catch { d = {}; }
+  d.bbuTasks = tasks;
+  localStorage.setItem('butime_bbu_data_' + instanceId, JSON.stringify(d));
+}
+function getBbuTasks() { return getBbuTasksForInstance(getActiveInstanceId()); }
+function saveBbuTasks(tasks) { saveBbuTasksForInstance(getActiveInstanceId(), tasks); }
+
+/* ---- Migrate old global BBU storage into the active instance ---- */
+function migrateBbuData() {
+  const old = localStorage.getItem('butime_bbu_tasks');
+  if (old === null) return;
+  let tasks = [];
+  try { tasks = JSON.parse(old) || []; } catch { tasks = []; }
+  const activeId = getActiveInstanceId();
+  if (getBbuTasksForInstance(activeId).length === 0) saveBbuTasksForInstance(activeId, tasks);
+  localStorage.removeItem('butime_bbu_tasks');
+}
+
+function getMode() {
+  return localStorage.getItem('butime_mode') || 'legacy';
+}
+function setMode(mode) {
+  localStorage.setItem('butime_mode', mode);
+}
+function getBbuView() {
+  return localStorage.getItem('butime_bbu_view') || 'matrix';
+}
+function setBbuView(view) {
+  localStorage.setItem('butime_bbu_view', view);
+}
+function getBbuCalMode() {
+  return localStorage.getItem('butime_bbu_cal_mode') || 'month';
+}
+function setBbuCalMode(mode) {
+  localStorage.setItem('butime_bbu_cal_mode', mode);
+}
+
+function getPomoSettings() {
+  const d = { workMin: 25, shortBreakMin: 5, longBreakMin: 15, longBreakEvery: 4, sound: true, location: 'view' };
+  try { return Object.assign({}, d, JSON.parse(localStorage.getItem('butime_pomodoro')) || {}); }
+  catch { return d; }
+}
+function savePomoSettings(s) {
+  localStorage.setItem('butime_pomodoro', JSON.stringify(s));
+}
+
 function getTodoStatus(todo) {
   if (!todo.deadline || todo.type === 'casual') return { color: '#5a6380', near: false };
   const settings = getSettings();
@@ -95,30 +141,33 @@ function hasNearDeadlineTodos() {
   return getTodos().some(t => !t.completed && t.deadline && getTodoStatus(t).near);
 }
 
-/* ============================================ *
- *  JSON EXPORT / IMPORT                        *
- *  The full application state as a single JSON *
- * ============================================ */
+// JSON Import Export
 
-/* ---- Export: builds a complete JSON blob ---- */
 function exportAllData() {
   const instances = getInstances();
   const instancesData = {};
+  const bbuInstancesData = {};
   instances.forEach(inst => {
     instancesData[inst.id] = getInstanceData(inst.id);
+    bbuInstancesData[inst.id] = getBbuTasksForInstance(inst.id);
   });
   const payload = {
-    butime: '1.0',
+    butime: '1.2',
     exportedAt: new Date().toISOString(),
     settings: getSettings(),
     activeInstanceId: getActiveInstanceId(),
     instances: instances,
     instancesData: instancesData,
+    bbuInstancesData: bbuInstancesData,
+    mode: getMode(),
+    bbuView: getBbuView(),
+    bbuCalMode: getBbuCalMode(),
+    pomodoro: getPomoSettings(),
+    bbuTasks: getBbuTasks(),
   };
   return JSON.stringify(payload, null, 2);
 }
 
-/* ---- Import: replaces ALL localStorage data from a JSON blob ---- */
 function importAllData(jsonStr) {
   let payload;
   try { payload = JSON.parse(jsonStr); }
@@ -128,7 +177,6 @@ function importAllData(jsonStr) {
     throw new Error('Invalid butime backup file');
   }
 
-  // Wipe all existing butime keys
   const keysToRemove = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
@@ -138,7 +186,6 @@ function importAllData(jsonStr) {
   }
   keysToRemove.forEach(k => localStorage.removeItem(k));
 
-  // Restore from payload
   saveSettings(payload.settings || getDefaultSettings());
   setActiveInstanceId(payload.activeInstanceId || 'default');
   saveInstances(payload.instances);
@@ -146,4 +193,17 @@ function importAllData(jsonStr) {
   Object.keys(payload.instancesData).forEach(id => {
     saveInstanceData(id, payload.instancesData[id]);
   });
+
+  // Restore BBU mode state (if present in the backup)
+  if (payload.mode) setMode(payload.mode);
+  if (payload.bbuView) setBbuView(payload.bbuView);
+  if (payload.bbuCalMode) setBbuCalMode(payload.bbuCalMode);
+  if (payload.pomodoro) savePomoSettings(payload.pomodoro);
+  if (payload.bbuInstancesData) {
+    Object.keys(payload.bbuInstancesData).forEach(id => {
+      saveBbuTasksForInstance(id, payload.bbuInstancesData[id] || []);
+    });
+  } else if (payload.bbuTasks) {
+    saveBbuTasksForInstance(getActiveInstanceId(), payload.bbuTasks);
+  }
 }

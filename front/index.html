@@ -9,7 +9,7 @@
 <body>
   <!-- HEADER -->
   <header class="header">
-    <div class="header-left">
+    <div class="header-left" id="headerLeft">
       <button class="nav-btn" id="prevWeek" aria-label="Previous week">⟨</button>
       <span class="week-label" id="weekLabel">WEEK</span>
       <button class="nav-btn" id="nextWeek" aria-label="Next week">⟩</button>
@@ -18,10 +18,7 @@
     <div class="header-center">
       <div class="view-selector" id="viewSelector">
         <span class="view-current" id="viewCurrent">TIMETABLE</span>
-        <div class="view-dropdown" id="viewDropdown">
-          <div class="view-option" data-view="timetable">TIMETABLE</div>
-          <div class="view-option" data-view="todo">TO DO LIST</div>
-        </div>
+        <div class="view-dropdown" id="viewDropdown"></div>
       </div>
     </div>
     <div class="header-right">
@@ -40,6 +37,27 @@
       <div class="sidebar-list" id="sidebarList">
         <!-- rendered by JS -->
       </div>
+      <div class="sidebar-pomodoro" id="sidebarPomodoro">
+        <div class="sidebar-pomodoro-header">
+          <span class="sidebar-title">POMODORO</span>
+          <button class="pomo-settings-btn pomo-settings" title="Pomodoro settings">⚙</button>
+        </div>
+        <div class="pomo-widget">
+          <div class="pomo-mode">FOCUS</div>
+          <div class="pomo-time">25:00</div>
+          <div class="pomo-progress"></div>
+          <div class="pomo-title" style="display:none"></div>
+          <div class="pomo-controls">
+            <button class="pomo-btn pomo-start">▶ START</button>
+            <button class="pomo-btn pomo-reset" title="Reset">⟲</button>
+          </div>
+          <div class="pomo-task-actions" style="display:none">
+            <button class="pomo-finish">✓ Finish task</button>
+            <button class="pomo-unlink" title="Remove linked task">✕ Remove</button>
+          </div>
+        </div>
+        <div class="pomo-settings-inline" id="pomoSettingsInline" style="display:none"></div>
+      </div>
       <div class="sidebar-footer">
         <button class="sidebar-add-btn" id="sidebarAddBtn">+ NEW INSTANCE</button>
         <button class="sidebar-settings-btn" id="sidebarSettingsBtn">⚙ SETTINGS</button>
@@ -55,34 +73,51 @@
         <h2 class="settings-title">SETTINGS</h2>
 
         <div class="settings-section">
-          <h3 class="settings-section-title">DEFAULT "NEAR DEADLINE" THRESHOLDS</h3>
-          <p class="settings-desc">How close to the deadline should a todo turn urgent?</p>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">IMMEDIATE TYPE</label>
-              <div class="input-with-unit">
-                <input type="number" class="form-input" id="setNearImmediate" min="1" value="24">
-                <span class="input-unit">hours</span>
-              </div>
+          <h3 class="settings-section-title">MODE</h3>
+          <p class="settings-desc">Legacy and BBU each keep their own separate data. Switching modes never deletes the other mode's data.</p>
+          <div class="mode-selector" id="modeSelector">
+            <div class="mode-option" data-mode="legacy">
+              <span class="mode-option-name">LEGACY</span>
+              <span class="mode-option-desc">Timetable · weekly to-do list · instances</span>
             </div>
-            <div class="form-group">
-              <label class="form-label">BEFORE DEADLINE TYPE</label>
-              <div class="input-with-unit">
-                <input type="number" class="form-input" id="setNearScheduled" min="1" value="48">
-                <span class="input-unit">hours</span>
-              </div>
+            <div class="mode-option" data-mode="bbu">
+              <span class="mode-option-name">BBU</span>
+              <span class="mode-option-desc">Eisenhower matrix · calendar · instances</span>
             </div>
           </div>
         </div>
 
-        <div class="settings-section">
-          <h3 class="settings-section-title">PER-TODO URGENCY OVERRIDE</h3>
-          <p class="settings-desc">When enabled, each todo can have its own "near" threshold.</p>
-          <label class="toggle-row">
-            <span class="toggle-label">Enable per-todo urgency</span>
-            <input type="checkbox" class="toggle-input" id="setPerTodoUrgency">
-            <span class="toggle-switch"></span>
-          </label>
+        <div id="settingsLegacySections">
+          <div class="settings-section">
+            <h3 class="settings-section-title">DEFAULT "NEAR DEADLINE" THRESHOLDS</h3>
+            <p class="settings-desc">How close to the deadline should a todo turn urgent?</p>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">IMMEDIATE TYPE</label>
+                <div class="input-with-unit">
+                  <input type="number" class="form-input" id="setNearImmediate" min="1" value="24">
+                  <span class="input-unit">hours</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">BEFORE DEADLINE TYPE</label>
+                <div class="input-with-unit">
+                  <input type="number" class="form-input" id="setNearScheduled" min="1" value="48">
+                  <span class="input-unit">hours</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <h3 class="settings-section-title">PER-TODO URGENCY OVERRIDE</h3>
+            <p class="settings-desc">When enabled, each todo can have its own "near" threshold.</p>
+            <label class="toggle-row">
+              <span class="toggle-label">Enable per-todo urgency</span>
+              <input type="checkbox" class="toggle-input" id="setPerTodoUrgency">
+              <span class="toggle-switch"></span>
+            </label>
+          </div>
         </div>
 
         <div class="settings-section">
@@ -124,6 +159,60 @@
       <div class="todo-container" id="todoContainer">
         <!-- Rendered by JS -->
       </div>
+    </div>
+  </div>
+
+  <!-- BBU MATRIX VIEW -->
+  <div class="view-panel" id="viewBbuMatrix" style="display:none">
+    <div class="bbu-matrix-wrap" id="bbuMatrixWrap">
+      <div class="bbu-matrix" id="bbuMatrix"></div>
+      <div class="bbu-wontdo" id="bbuWontDo"></div>
+    </div>
+  </div>
+
+  <!-- BBU LIST VIEW -->
+  <div class="view-panel" id="viewBbuList" style="display:none">
+    <div class="bbu-list-wrap">
+      <div class="bbu-list" id="bbuList"></div>
+    </div>
+  </div>
+
+  <!-- POMODORO VIEW -->
+  <div class="view-panel" id="viewPomodoro" style="display:none">
+    <div class="pomo-view-wrap">
+      <div class="pomo-view-widget">
+        <div class="pomo-mode">FOCUS</div>
+        <div class="pomo-time">25:00</div>
+        <div class="pomo-progress"></div>
+        <div class="pomo-title" style="display:none"></div>
+        <div class="pomo-controls">
+          <button class="pomo-btn pomo-start">▶ START</button>
+          <button class="pomo-btn pomo-reset" title="Reset">⟲</button>
+          <button class="pomo-btn pomo-settings" title="Pomodoro settings">⚙</button>
+        </div>
+        <div class="pomo-task-actions" style="display:none">
+          <button class="pomo-finish">✓ Finish task</button>
+          <button class="pomo-unlink" title="Remove linked task">✕ Remove</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BBU CALENDAR VIEW -->
+  <div class="view-panel" id="viewBbuCalendar" style="display:none">
+    <div class="bbu-calendar-wrap" id="bbuCalendarWrap">
+      <div class="bbu-cal-overdue" id="bbuCalOverdue"></div>
+      <div class="bbu-cal-nav">
+        <button class="nav-btn" id="bbuCalPrev" aria-label="Previous period">⟨</button>
+        <span class="week-label" id="bbuCalLabel">WEEK</span>
+        <button class="nav-btn" id="bbuCalNext" aria-label="Next period">⟩</button>
+        <button class="nav-btn" id="bbuCalToday" aria-label="Go to today">◎</button>
+        <div class="bbu-cal-mode-toggle" id="bbuCalModeToggle">
+          <button class="bbu-cal-mode-btn" data-mode="month">MONTH</button>
+          <button class="bbu-cal-mode-btn" data-mode="week">WEEK</button>
+        </div>
+      </div>
+      <div class="bbu-calendar" id="bbuCalendar"></div>
     </div>
   </div>
 
@@ -314,6 +403,88 @@
   </div>
 
   </div> <!-- end .app-body -->
+
+  <!-- ===== POMODORO SETTINGS MODAL ===== -->
+  <div class="modal-overlay" id="pomoSettingsOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">POMODORO SETTINGS</span>
+        <button class="modal-close" id="pomoSettingsClose">✕</button>
+      </div>
+      <div class="modal-body" id="pomoSettingsModalBody"></div>
+    </div>
+  </div>
+
+  <!-- ===== MODE SWITCH CONFIRM ===== -->
+  <div class="modal-overlay" id="modeModalOverlay">
+    <div class="modal" id="modeModal">
+      <div class="modal-header">
+        <span class="modal-title">SWITCH MODE?</span>
+        <button class="modal-close" id="modeModalClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-hint" id="modeModalText"></p>
+      </div>
+      <div class="modal-footer">
+        <div class="modal-footer-right">
+          <button class="btn btn-cancel" id="modeModalCancel">CANCEL</button>
+          <button class="btn btn-save" id="modeModalConfirm">SWITCH</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== BBU TASK MODAL (quick add / edit) ===== -->
+  <div class="modal-overlay" id="bbuModalOverlay">
+    <div class="bbu-modal" id="bbuModal">
+      <div class="bbu-modal-top">
+        <div class="bbu-due-group">
+          <button class="bbu-due-btn" id="bbuDueBtn" title="Set due date">
+            <svg viewBox="0 0 24 24" width="14" height="14"><rect x="3" y="4" width="18" height="17" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 9h18M8 2v4M16 2v4M8 14h3M8 18h3M14 14h2M14 18h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <span class="bbu-due-text" id="bbuDueText">No date</span>
+            <svg viewBox="0 0 8 5" width="8" height="5"><path d="M0 0l4 5 4-5z" fill="currentColor"/></svg>
+          </button>
+          <button class="bbu-time-btn" id="bbuTimeBtn" title="Set time (optional)">
+            <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <span id="bbuTimeText">Time</span>
+          </button>
+        </div>
+        <button class="bbu-flag-btn" id="bbuFlagBtn" title="Priority">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M5 3v18M5 4c3-1.5 5 1.5 8 0 2-1 4 .5 6 0V13c-2 .5-4-1-6 0-3 1.5-5-1.5-8 0z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <input type="text" class="bbu-input" id="bbuTaskInput" placeholder="What would you like to do?" autocomplete="off">
+      <div class="bbu-quadrant-row" id="bbuQuadrantRow"></div>
+      <div class="bbu-modal-panels">
+        <div class="bbu-date-panel" id="bbuDatePanel" style="display:none">
+          <button class="bbu-quick" id="bbuDateToday">☀ Today</button>
+          <button class="bbu-quick" id="bbuDateTomorrow">🌅 Tomorrow</button>
+          <button class="bbu-quick" id="bbuDateWeek">📅 Next week</button>
+          <input type="date" class="bbu-custom-date" id="bbuDateCustom" title="Pick a custom date">
+          <button class="bbu-quick bbu-clear" id="bbuDateClear">✕ Clear date</button>
+        </div>
+        <div class="bbu-priority-panel" id="bbuPriorityPanel" style="display:none"></div>
+        <div class="bbu-time-panel" id="bbuTimePanel" style="display:none">
+          <input type="time" class="bbu-custom-date" id="bbuTimeInput" title="Pick a time (optional)">
+          <button class="bbu-quick bbu-clear" id="bbuTimeClear">✕ Clear time</button>
+        </div>
+      </div>
+      <div class="bbu-modal-foot">
+        <div class="bbu-inbox">
+          <span class="bbu-inbox-ico">⌂</span>
+          <span class="bbu-inbox-name" id="bbuInboxName">INBOX</span>
+          <span class="bbu-inbox-more" title="No lists in BBU mode">⋯</span>
+        </div>
+        <div class="bbu-modal-actions">
+          <button class="btn btn-cancel" id="bbuModalCancelBtn">CANCEL</button>
+          <button class="btn btn-save" id="bbuModalSaveBtn">SAVE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== BBU CONTEXT MENU ===== -->
+  <div class="bbu-menu" id="bbuMenu" style="display:none"></div>
 
   <script src="../back/db.js"></script>
   <script src="../back/app.js"></script>
