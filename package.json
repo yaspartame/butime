@@ -1,0 +1,33 @@
+{
+  "name": "butime",
+  "productName": "butime",
+  "version": "1.0.0",
+  "description": "Offline time-management app",
+  "main": "main.js",
+  "author": "Miyakazine",
+  "license": "GPL-3.0",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.yourname.butime",
+    "productName": "butime",
+    "files": ["main.js", "front/**/*", "back/**/*"],
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "butime",
+      "runAfterFinish": true
+    }
+  }
+}
