@@ -444,10 +444,13 @@
             <span class="bbu-due-text" id="bbuDueText">No date</span>
             <svg viewBox="0 0 8 5" width="8" height="5"><path d="M0 0l4 5 4-5z" fill="currentColor"/></svg>
           </button>
-          <button class="bbu-time-btn" id="bbuTimeBtn" title="Set time (optional)">
+          <div class="bbu-native-field" id="bbuTimeField" title="Set time (optional)">
             <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            <span id="bbuTimeText">Time</span>
-          </button>
+            <span class="bbu-field-text muted" id="bbuTimeText">Time</span>
+            <span class="bbu-field-clear" id="bbuTimeClearBtn" title="Clear time">✕</span>
+            <input type="time" id="bbuTimeInput" class="bbu-native-input" tabindex="-1" aria-hidden="true">
+            <svg viewBox="0 0 8 5" width="8" height="5"><path d="M0 0l4 5 4-5z" fill="currentColor"/></svg>
+          </div>
         </div>
         <button class="bbu-flag-btn" id="bbuFlagBtn" title="Priority">
           <svg viewBox="0 0 24 24" width="18" height="18"><path d="M5 3v18M5 4c3-1.5 5 1.5 8 0 2-1 4 .5 6 0V13c-2 .5-4-1-6 0-3 1.5-5-1.5-8 0z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
@@ -460,14 +463,15 @@
           <button class="bbu-quick" id="bbuDateToday">☀ Today</button>
           <button class="bbu-quick" id="bbuDateTomorrow">🌅 Tomorrow</button>
           <button class="bbu-quick" id="bbuDateWeek">📅 Next week</button>
-          <input type="date" class="bbu-custom-date" id="bbuDateCustom" title="Pick a custom date">
+          <div class="bbu-native-field bbu-custom-date-field" id="bbuDateField" title="Pick a custom date">
+            <svg viewBox="0 0 24 24" width="13" height="13"><rect x="3" y="4" width="18" height="17" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 9h18M8 2v4M16 2v4M8 14h3M8 18h3M14 14h2M14 18h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <span class="bbu-field-text muted" id="bbuCustomDateText">Custom date</span>
+            <input type="date" id="bbuDateInput" class="bbu-native-input" tabindex="-1" aria-hidden="true">
+            <svg viewBox="0 0 8 5" width="8" height="5"><path d="M0 0l4 5 4-5z" fill="currentColor"/></svg>
+          </div>
           <button class="bbu-quick bbu-clear" id="bbuDateClear">✕ Clear date</button>
         </div>
         <div class="bbu-priority-panel" id="bbuPriorityPanel" style="display:none"></div>
-        <div class="bbu-time-panel" id="bbuTimePanel" style="display:none">
-          <input type="time" class="bbu-custom-date" id="bbuTimeInput" title="Pick a time (optional)">
-          <button class="bbu-quick bbu-clear" id="bbuTimeClear">✕ Clear time</button>
-        </div>
       </div>
       <div class="bbu-modal-desc">
         <textarea id="bbuDescInput" class="bbu-desc-input" rows="1" placeholder="Add a description (optional)" maxlength="1000"></textarea>

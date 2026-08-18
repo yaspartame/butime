@@ -944,7 +944,6 @@ function closeBbuModal() {
 function closeBbuPanels() {
   document.getElementById('bbuDatePanel').style.display = 'none';
   document.getElementById('bbuPriorityPanel').style.display = 'none';
-  document.getElementById('bbuTimePanel').style.display = 'none';
 }
 function renderBbuQuadrantRow() {
   const row = document.getElementById('bbuQuadrantRow');
@@ -960,15 +959,21 @@ function renderBbuQuadrantRow() {
 }
 function renderBbuDue() {
   const t = state.bbuModal.dueDate;
-  const el = document.getElementById('bbuDueText');
-  el.textContent = t ? bbuDueLabel({ dueDate: t }) : 'No date';
-  el.style.color = t ? 'var(--text-primary)' : 'var(--text-muted)';
+  const btn = document.getElementById('bbuDueText');
+  btn.textContent = t ? bbuDueLabel({ dueDate: t }) : 'No date';
+  btn.style.color = t ? 'var(--text-primary)' : 'var(--text-muted)';
+  const custom = document.getElementById('bbuCustomDateText');
+  custom.textContent = t ? bbuDueLabel({ dueDate: t }) : 'Custom date';
+  custom.classList.toggle('muted', !t);
+  document.getElementById('bbuDateInput').value = t || '';
 }
 function renderBbuTime() {
+  const field = document.getElementById('bbuTimeField');
   const el = document.getElementById('bbuTimeText');
-  const t = state.bbuModal.time;
-  el.textContent = t ? bbuTimeLabel({ time: t }) : 'Time';
-  el.style.color = t ? 'var(--text-primary)' : 'var(--text-muted)';
+  document.getElementById('bbuTimeInput').value = state.bbuModal.time || '';
+  el.textContent = state.bbuModal.time ? bbuTimeLabel({ time: state.bbuModal.time }) : 'Time';
+  el.classList.toggle('muted', !state.bbuModal.time);
+  field.classList.toggle('has-value', !!state.bbuModal.time);
 }
 function renderBbuFlag() {
   document.getElementById('bbuFlagBtn').style.color = bbuPriorityMeta(state.bbuModal.priority).color;
@@ -1159,17 +1164,23 @@ document.addEventListener('click', (e) => { if (!e.target.closest('#bbuMenu')) c
 document.addEventListener('contextmenu', (e) => { if (!e.target.closest('#bbuMenu')) closeBbuMenu(); });
 
 function initBbuPanels() {
+  // Clicking a whole native field opens the browser's picker popup.
+  function openNative(input) {
+    try { if (input.showPicker) input.showPicker(); else input.click(); }
+    catch (_) { input.click(); }
+  }
   const datePanel = document.getElementById('bbuDatePanel');
   document.getElementById('bbuDueBtn').addEventListener('click', () => {
     const show = datePanel.style.display === 'none';
     closeBbuPanels();
     datePanel.style.display = show ? 'block' : 'none';
-    if (show) document.getElementById('bbuDateCustom').value = state.bbuModal.dueDate || '';
+    if (show) document.getElementById('bbuDateInput').value = state.bbuModal.dueDate || '';
   });
   document.getElementById('bbuDateToday').addEventListener('click', () => { const n = new Date(); n.setHours(0, 0, 0, 0); state.bbuModal.dueDate = formatDateISO(n); renderBbuDue(); closeBbuPanels(); });
   document.getElementById('bbuDateTomorrow').addEventListener('click', () => { const n = new Date(); n.setDate(n.getDate() + 1); state.bbuModal.dueDate = formatDateISO(n); renderBbuDue(); closeBbuPanels(); });
   document.getElementById('bbuDateWeek').addEventListener('click', () => { const n = new Date(); n.setDate(n.getDate() + 7); state.bbuModal.dueDate = formatDateISO(n); renderBbuDue(); closeBbuPanels(); });
-  document.getElementById('bbuDateCustom').addEventListener('change', (e) => { state.bbuModal.dueDate = e.target.value || null; renderBbuDue(); });
+  document.getElementById('bbuDateField').addEventListener('click', () => openNative(document.getElementById('bbuDateInput')));
+  document.getElementById('bbuDateInput').addEventListener('change', (e) => { state.bbuModal.dueDate = e.target.value || null; renderBbuDue(); });
   document.getElementById('bbuDateClear').addEventListener('click', () => { state.bbuModal.dueDate = null; renderBbuDue(); closeBbuPanels(); });
 
   const prioPanel = document.getElementById('bbuPriorityPanel');
@@ -1201,15 +1212,13 @@ function initBbuPanels() {
     descInput.style.height = Math.min(descInput.scrollHeight, 110) + 'px';
   });
 
-  const timePanel = document.getElementById('bbuTimePanel');
-  document.getElementById('bbuTimeBtn').addEventListener('click', () => {
-    const show = timePanel.style.display === 'none';
-    closeBbuPanels();
-    timePanel.style.display = show ? 'block' : 'none';
-    if (show) document.getElementById('bbuTimeInput').value = state.bbuModal.time || '';
+  const timeField = document.getElementById('bbuTimeField');
+  timeField.addEventListener('click', (e) => {
+    if (e.target.closest('#bbuTimeClearBtn')) return;
+    openNative(document.getElementById('bbuTimeInput'));
   });
-  document.getElementById('bbuTimeInput').addEventListener('change', (e) => { state.bbuModal.time = e.target.value || null; renderBbuTime(); closeBbuPanels(); });
-  document.getElementById('bbuTimeClear').addEventListener('click', () => { state.bbuModal.time = null; renderBbuTime(); closeBbuPanels(); });
+  document.getElementById('bbuTimeInput').addEventListener('change', (e) => { state.bbuModal.time = e.target.value || null; renderBbuTime(); });
+  document.getElementById('bbuTimeClearBtn').addEventListener('click', (e) => { e.stopPropagation(); state.bbuModal.time = null; renderBbuTime(); });
 
   document.getElementById('bbuCalPrev').addEventListener('click', () => bbuCalStep(-1));
   document.getElementById('bbuCalNext').addEventListener('click', () => bbuCalStep(1));
