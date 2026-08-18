@@ -15,7 +15,7 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.yourname.butime",
+    "appId": "com.meow.butime",
     "productName": "butime",
     "files": ["main.js", "front/**/*", "back/**/*"],
     "win": {
