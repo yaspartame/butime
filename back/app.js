@@ -27,6 +27,7 @@ let state = {
   bbuCalMonthOffset: 0,
   bbuModal: null,
   bbuMenuTaskId: null,
+  bbuMenuCreateDate: null,
 };
 
 function getMonday(date) {
@@ -662,6 +663,13 @@ function renderBbuCalWeek() {
       col.appendChild(nowLine);
     }
 
+    // Right-click a day column -> create-task menu with the date pre-set
+    col.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openBbuDayCreateMenu(e, iso, d);
+    });
+
     body.appendChild(col);
   });
 
@@ -712,6 +720,14 @@ function renderBbuCalMonth() {
       dayTasks.forEach(t => tl.appendChild(createBbuTaskEl(t, { compact: true })));
       col.appendChild(tl);
     }
+
+    // Right-click a day cell -> create-task menu with the date pre-set
+    col.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openBbuDayCreateMenu(e, iso, d);
+    });
+
     wrap.appendChild(col);
   }
   renderBbuCalOverdue(tasks);
@@ -920,6 +936,8 @@ function openBbuModal(opts) {
     priority = p.priority || 0;
     dueDate = p.dueDate || null;
     time = p.time || null;
+  } else if (opts.mode === 'create' && opts.dueDate) {
+    dueDate = opts.dueDate;
   }
   state.bbuModal = { mode: opts.mode || 'create', parentId: opts.parentId || null, editId: opts.editId || null, quadrant, priority, dueDate, time, description };
   document.getElementById('bbuTaskInput').value = name;
@@ -1147,6 +1165,26 @@ function openBbuContextMenu(e, taskId) {
     closeBbuMenu();
   }));
 }
+function openBbuDayCreateMenu(e, dateISO, date) {
+  const m = document.getElementById('bbuMenu');
+  state.bbuMenuCreateDate = dateISO;
+  m.innerHTML = `
+    <div class="bbu-menu-header"><span class="bbu-q-dot" style="background:var(--accent)"></span><span class="bbu-menu-title">${formatDateNice(date)}</span></div>
+    <div class="bbu-menu-section">
+      <div class="bbu-menu-item" data-act="create">${svgPlus()} Create task</div>
+    </div>`;
+  m.style.display = 'block';
+  const mw = m.offsetWidth, mh = m.offsetHeight;
+  let x = e.clientX, y = e.clientY;
+  if (x + mw > window.innerWidth - 8) x = window.innerWidth - mw - 8;
+  if (y + mh > window.innerHeight - 8) y = window.innerHeight - mh - 8;
+  m.style.left = Math.max(4, x) + 'px';
+  m.style.top = Math.max(4, y) + 'px';
+  m.querySelectorAll('.bbu-menu-item').forEach(it => it.addEventListener('click', () => {
+    if (it.dataset.act === 'create') openBbuModal({ mode: 'create', dueDate: state.bbuMenuCreateDate });
+    closeBbuMenu();
+  }));
+}
 function bbuQuickDue(taskId, which) {
   const n = new Date(); n.setHours(0, 0, 0, 0);
   if (which === 'today') bbuSetDueDate(taskId, formatDateISO(n));
@@ -1159,6 +1197,7 @@ function closeBbuMenu() {
   m.style.display = 'none';
   m.innerHTML = '';
   state.bbuMenuTaskId = null;
+  state.bbuMenuCreateDate = null;
 }
 document.addEventListener('click', (e) => { if (!e.target.closest('#bbuMenu')) closeBbuMenu(); });
 document.addEventListener('contextmenu', (e) => { if (!e.target.closest('#bbuMenu')) closeBbuMenu(); });
