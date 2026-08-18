@@ -432,6 +432,50 @@ function bbuTimeLabel(t) {
   const hh = h % 12 || 12;
   return `${hh}:${String(m).padStart(2, '0')} ${ampm}`;
 }
+function bbuTimeToMin(t) {
+  if (!t) return 0;
+  const [h, m] = t.split(':').map(Number);
+  return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+}
+function bbuHourLabel(h) {
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  return `${h % 12 || 12} ${ampm}`;
+}
+// Tasks only store a start time, so each occupies a default block so that
+// overlapping times can be detected and nested like Google Calendar.
+const BBU_EVENT_DURATION_MIN = 60;
+function bbuLayoutWeekEvents(items) {
+  // items: [{ task, start(min), end(min) }] -> same array with col/left/width added.
+  if (!items.length) return items;
+  // Sort by start, then longer first (so same-start events order predictably).
+  const evs = items.map((it, i) => Object.assign({ i }, it)).sort((a, b) => a.start - b.start || b.end - a.end);
+  // Cluster events into connected components of the overlap graph.
+  const groups = [];
+  let group = [];
+  let maxEnd = -Infinity;
+  evs.forEach(ev => {
+    if (ev.start >= maxEnd) { group = []; groups.push(group); }
+    group.push(ev);
+    maxEnd = Math.max(maxEnd, ev.end);
+  });
+  // Within each cluster, assign columns greedily; overlapping events get
+  // different columns, everyone shares the cluster width equally.
+  groups.forEach(g => {
+    const cols = [];
+    g.forEach(ev => {
+      let c = 0;
+      while (c < cols.length && cols[c] > ev.start) c++;
+      if (c >= cols.length) cols.push(ev.end);
+      else cols[c] = Math.max(cols[c], ev.end);
+      ev.col = c;
+    });
+    const n = cols.length;
+    g.forEach(ev => { ev.left = (ev.col / n) * 100; ev.width = 100 / n; });
+  });
+  const byIdx = [];
+  groups.forEach(g => g.forEach(ev => { byIdx[ev.i] = ev; }));
+  return items.map((it, i) => byIdx[i]);
+}
 function bbuSortTasks(a, b) {
   if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
   const ad = a.dueDate || '', bd = b.dueDate || '';
@@ -488,30 +532,146 @@ function renderBbuCalWeek() {
   document.getElementById('bbuCalLabel').textContent = `W${getWeekNumber(base)} // ${MONTH_SHORT[base.getMonth()]} ${base.getDate()} - ${MONTH_SHORT[weekDays[6].getMonth()]} ${weekDays[6].getDate()} ${base.getFullYear()}`;
   wrap.className = 'bbu-calendar week';
   wrap.innerHTML = '';
+
+  // Visible hour window — defaults to 6 AM – 11 PM like a Google Calendar
+  // zoomed week, but auto-extends when a task's time falls outside it so
+  // nothing gets hidden.
+  let startHour = 6, endHour = 24;
+  tasks.forEach(t => {
+    if (!t.time) return;
+    const h = parseInt(t.time, 10);
+    if (isNaN(h)) return;
+    if (h < startHour) startHour = Math.max(0, h);
+    if (h + 1 > endHour) endHour = Math.min(24, h + 1);
+  });
+  const hours = [];
+  for (let h = startHour; h < endHour; h++) hours.push(h);
+
+  const HOUR_H = 48;
+  const gridH = hours.length * HOUR_H;
+  const now = new Date();
+  const nowTop = ((now.getHours() - startHour) * 60 + now.getMinutes()) / 60 * HOUR_H;
+  const todayInWeek = weekDays.some(isToday);
+
+  // Local UTC-offset label shown in the time gutter, e.g. GMT+08.
+  const off = -new Date().getTimezoneOffset();
+  const tzLabel = 'GMT' + (off >= 0 ? '+' : '-') + String(Math.floor(Math.abs(off) / 60)).padStart(2, '0') + (Math.abs(off) % 60 ? ':' + String(Math.abs(off) % 60).padStart(2, '0') : '');
+
+  // ---- Day headers (with a left gutter spacer) ----
+  const head = document.createElement('div');
+  head.className = 'bbu-cal-week-head';
+  const spacer = document.createElement('div');
+  spacer.className = 'bbu-cal-week-head-spacer';
+  spacer.textContent = tzLabel;
+  head.appendChild(spacer);
   weekDays.forEach(d => {
     const hdr = document.createElement('div');
     hdr.className = 'bbu-cal-day-header';
     if (isToday(d)) hdr.classList.add('today');
     hdr.innerHTML = `<span class="day-name">${DAY_LABELS[(d.getDay() + 6) % 7]}</span><span class="day-date">${formatDateNice(d)}</span>`;
-    wrap.appendChild(hdr);
+    head.appendChild(hdr);
   });
+
+  // ---- All-day row (tasks with no time, or a time outside the grid) ----
+  const allday = document.createElement('div');
+  allday.className = 'bbu-cal-week-allday';
+  const alldaySpacer = document.createElement('div');
+  alldaySpacer.className = 'bbu-cal-week-allday-spacer';
+  allday.appendChild(alldaySpacer);
+  let hasAllday = false;
   weekDays.forEach(d => {
     const iso = formatDateISO(d);
-    const dayTasks = tasks.filter(t => !t.completed && !t.wontDo && t.dueDate === iso).sort(bbuSortTasks);
+    const cell = document.createElement('div');
+    cell.className = 'bbu-cal-week-allday-cell';
+    const unscheduled = tasks.filter(t => {
+      if (t.completed || t.wontDo || t.dueDate !== iso) return false;
+      if (!t.time) return true;
+      const m = bbuTimeToMin(t.time);
+      return m < startHour * 60 || m >= endHour * 60;
+    }).sort(bbuSortTasks);
+    if (unscheduled.length) {
+      hasAllday = true;
+      unscheduled.forEach(t => cell.appendChild(createBbuTaskEl(t, { compact: true })));
+    }
+    allday.appendChild(cell);
+  });
+
+  // ---- Scrollable timed grid ----
+  const scroll = document.createElement('div');
+  scroll.className = 'bbu-cal-week-scroll';
+  scroll.appendChild(head);
+  if (hasAllday) scroll.appendChild(allday);
+  const body = document.createElement('div');
+  body.className = 'bbu-cal-week-body';
+  body.style.height = gridH + 'px';
+
+  const gutter = document.createElement('div');
+  gutter.className = 'bbu-cal-week-gutter';
+  gutter.style.height = gridH + 'px';
+  hours.forEach((h, i) => {
+    const lab = document.createElement('div');
+    lab.className = 'bbu-cal-week-hour-label';
+    lab.style.top = (i * HOUR_H + 2) + 'px';
+    lab.textContent = bbuHourLabel(h);
+    gutter.appendChild(lab);
+  });
+  if (todayInWeek && nowTop >= 0 && nowTop <= gridH) {
+    const dot = document.createElement('div');
+    dot.className = 'bbu-cal-week-now-dot';
+    dot.style.top = nowTop + 'px';
+    gutter.appendChild(dot);
+  }
+  body.appendChild(gutter);
+
+  weekDays.forEach(d => {
+    const iso = formatDateISO(d);
+    const dayTasks = tasks.filter(t => !t.completed && !t.wontDo && t.dueDate === iso);
     const col = document.createElement('div');
-    col.className = 'bbu-cal-day';
+    col.className = 'bbu-cal-week-day';
+    col.style.height = gridH + 'px';
     if (isToday(d)) col.classList.add('today');
     if (isPast(d) && !isToday(d)) col.classList.add('past');
-    if (dayTasks.length === 0) {
-      const e = document.createElement('div');
-      e.className = 'bbu-cal-empty';
-      e.textContent = '·';
-      col.appendChild(e);
-    } else {
-      dayTasks.forEach(t => col.appendChild(createBbuTaskEl(t, { compact: true })));
+
+    // Hour grid lines
+    hours.forEach((h, i) => {
+      const line = document.createElement('div');
+      line.className = 'bbu-cal-week-line' + (h === 12 ? ' noon' : '');
+      line.style.top = (i * HOUR_H) + 'px';
+      col.appendChild(line);
+    });
+
+    // Timed tasks pinned to their exact time slot, nested into columns when
+    // they overlap (Google Calendar style).
+    const timed = dayTasks.filter(t => t.time && bbuTimeToMin(t.time) >= startHour * 60 && bbuTimeToMin(t.time) < endHour * 60);
+    bbuLayoutWeekEvents(timed.map(t => ({ task: t, start: bbuTimeToMin(t.time), end: bbuTimeToMin(t.time) + BBU_EVENT_DURATION_MIN }))).forEach(ev => {
+      const top = ((ev.start - startHour * 60) / 60) * HOUR_H;
+      const el = createBbuTaskEl(ev.task, { compact: true });
+      el.classList.add('bbu-cal-event');
+      el.style.top = Math.max(0, top) + 'px';
+      el.style.left = `calc(${ev.left}% + 2px)`;
+      el.style.width = `calc(${ev.width}% - 4px)`;
+      el.style.height = Math.max(20, ((ev.end - ev.start) / 60) * HOUR_H - 2) + 'px';
+      col.appendChild(el);
+    });
+
+    // Current-time indicator
+    if (isToday(d) && nowTop >= 0 && nowTop <= gridH) {
+      const nowLine = document.createElement('div');
+      nowLine.className = 'bbu-cal-week-now';
+      nowLine.style.top = nowTop + 'px';
+      col.appendChild(nowLine);
     }
-    wrap.appendChild(col);
+
+    body.appendChild(col);
   });
+
+  scroll.appendChild(body);
+  wrap.appendChild(scroll);
+
+  // Keep the all-day row pinned right below the headers when scrolling.
+  if (hasAllday) {
+    allday.style.top = (head.offsetHeight || 0) + 'px';
+  }
   renderBbuCalOverdue(tasks);
 }
 
@@ -657,6 +817,7 @@ function createBbuTaskEl(task, opts) {
   const compact = opts && opts.compact;
   const q = bbuQuadrantOf(task);
   row.style.setProperty('--tc', q.color);
+  const desc = (!compact && task.description) ? `<span class="bbu-task-desc">${esc(task.description)}</span>` : '';
   const meta = [];
   if (task.priority) meta.push(`<span class="bbu-flag" style="color:${bbuPriorityMeta(task.priority).color}">${svgFlag()}</span>`);
   if (task.pinned) meta.push('<span class="bbu-pin">📌</span>');
@@ -667,7 +828,7 @@ function createBbuTaskEl(task, opts) {
       meta.push(`<span class="bbu-due-chip ${bbuIsOverdue(task) ? 'overdue' : ''}">${bbuDueLabel(task)}${task.time ? ' · ' + bbuTimeLabel(task) : ''}</span>`);
     }
   }
-  row.innerHTML = `<div class="bbu-check ${task.completed ? 'checked' : ''}"></div><div class="bbu-task-main"><span class="bbu-task-name">${esc(task.name)}</span>${meta.length ? `<span class="bbu-task-meta">${meta.join('')}</span>` : ''}</div>`;
+  row.innerHTML = `<div class="bbu-check ${task.completed ? 'checked' : ''}"></div><div class="bbu-task-main"><span class="bbu-task-name">${esc(task.name)}</span>${desc}${meta.length ? `<span class="bbu-task-meta">${meta.join('')}</span>` : ''}</div>`;
   row.addEventListener('click', (e) => { if (e.target.closest('.bbu-check')) return; openBbuModal({ mode: 'edit', editId: task.id }); });
   row.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); openBbuContextMenu(e, task.id); });
   row.querySelector('.bbu-check').addEventListener('click', (e) => { e.stopPropagation(); bbuToggleComplete(task.id); });
@@ -742,6 +903,7 @@ function openBbuModal(opts) {
   let dueDate = null;
   let time = null;
   let name = '';
+  let description = '';
   if (opts.mode === 'edit' && opts.editId) {
     const t = tasks.find(x => x.id === opts.editId);
     if (!t) return;
@@ -750,6 +912,7 @@ function openBbuModal(opts) {
     dueDate = t.dueDate || null;
     time = t.time || null;
     name = t.name;
+    description = t.description || '';
   } else if (opts.mode === 'subtask' && opts.parentId) {
     const p = tasks.find(x => x.id === opts.parentId);
     if (!p) return;
@@ -758,16 +921,21 @@ function openBbuModal(opts) {
     dueDate = p.dueDate || null;
     time = p.time || null;
   }
-  state.bbuModal = { mode: opts.mode || 'create', parentId: opts.parentId || null, editId: opts.editId || null, quadrant, priority, dueDate, time };
+  state.bbuModal = { mode: opts.mode || 'create', parentId: opts.parentId || null, editId: opts.editId || null, quadrant, priority, dueDate, time, description };
   document.getElementById('bbuTaskInput').value = name;
-  document.getElementById('bbuInboxName').textContent = state.bbuModal.mode === 'subtask' ? 'SUBTASK' : 'INBOX';
+  const descInput = document.getElementById('bbuDescInput');
+  descInput.value = description || '';
+  descInput.style.height = 'auto';
   renderBbuQuadrantRow();
   renderBbuDue();
   renderBbuTime();
   renderBbuFlag();
   closeBbuPanels();
   document.getElementById('bbuModalOverlay').classList.add('active');
-  requestAnimationFrame(() => document.getElementById('bbuTaskInput').focus());
+  requestAnimationFrame(() => {
+    document.getElementById('bbuTaskInput').focus();
+    descInput.style.height = Math.min(descInput.scrollHeight, 110) + 'px';
+  });
 }
 function closeBbuModal() {
   document.getElementById('bbuModalOverlay').classList.remove('active');
@@ -808,6 +976,7 @@ function renderBbuFlag() {
 function bbuModalSave() {
   const name = document.getElementById('bbuTaskInput').value.trim();
   if (!name) { shakeBtn(document.getElementById('bbuModalSaveBtn')); return; }
+  const description = document.getElementById('bbuDescInput').value.trim();
   const m = state.bbuModal;
   if (!m) return;
   const tasks = getBbuTasks();
@@ -821,13 +990,14 @@ function bbuModalSave() {
       t.priority = m.priority;
       t.dueDate = m.dueDate;
       t.time = m.time;
+      t.description = description || '';
       bbuSyncChildren(tasks, t.id);
     }
   } else if (m.mode === 'subtask' && m.parentId) {
     const p = tasks.find(x => x.id === m.parentId);
-    if (p) tasks.push({ id: genId(), name, parentId: p.id, urgent: p.urgent, important: p.important, priority: p.priority, dueDate: p.dueDate, time: p.time, completed: false, pinned: false, wontDo: false, createdAt: now });
+    if (p) tasks.push({ id: genId(), name, parentId: p.id, urgent: p.urgent, important: p.important, priority: p.priority, dueDate: p.dueDate, time: p.time, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now });
   } else {
-    tasks.push({ id: genId(), name, parentId: null, urgent: m.quadrant.urgent, important: m.quadrant.important, priority: m.priority, dueDate: m.dueDate, time: m.time, completed: false, pinned: false, wontDo: false, createdAt: now });
+    tasks.push({ id: genId(), name, parentId: null, urgent: m.quadrant.urgent, important: m.quadrant.important, priority: m.priority, dueDate: m.dueDate, time: m.time, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now });
   }
   saveBbuTasks(tasks);
   closeBbuModal();
@@ -1024,6 +1194,12 @@ function initBbuPanels() {
   document.getElementById('bbuModalSaveBtn').addEventListener('click', bbuModalSave);
   document.getElementById('bbuTaskInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); bbuModalSave(); } });
   document.getElementById('bbuModalOverlay').addEventListener('click', (e) => { if (e.target === document.getElementById('bbuModalOverlay')) closeBbuModal(); });
+
+  const descInput = document.getElementById('bbuDescInput');
+  descInput.addEventListener('input', () => {
+    descInput.style.height = 'auto';
+    descInput.style.height = Math.min(descInput.scrollHeight, 110) + 'px';
+  });
 
   const timePanel = document.getElementById('bbuTimePanel');
   document.getElementById('bbuTimeBtn').addEventListener('click', () => {
