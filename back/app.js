@@ -747,7 +747,7 @@ function renderBbuCalOverdue(tasks) {
   box.appendChild(t);
   const list = document.createElement('div');
   list.className = 'bbu-cal-overdue-list';
-  overdue.forEach(tk => list.appendChild(createBbuTaskEl(tk)));
+  bbuRenderTree(list, getBbuTasks(), overdue, {});
   box.appendChild(list);
   strip.appendChild(box);
 }
@@ -776,7 +776,7 @@ function renderBbuMatrix() {
       empty.textContent = 'No Tasks';
       body.appendChild(empty);
     } else {
-      qTasks.forEach(t => body.appendChild(createBbuTaskEl(t)));
+      bbuRenderTree(body, tasks, qTasks, {});
     }
     quad.appendChild(body);
     const completed = topLevel.filter(t => t.completed && !!t.urgent === q.urgent && !!t.important === q.important);
@@ -789,7 +789,7 @@ function renderBbuMatrix() {
         if (existing) { existing.remove(); ft.classList.remove('open'); return; }
         const pl = document.createElement('div');
         pl.className = 'bbu-q-completed-list';
-        completed.sort(bbuSortTasks).forEach(t => pl.appendChild(createBbuTaskEl(t)));
+        bbuRenderTree(pl, tasks, completed.slice().sort(bbuSortTasks), {});
         quad.appendChild(pl);
         ft.classList.add('open');
       });
@@ -802,7 +802,8 @@ function renderBbuMatrix() {
 
 function renderBbuWontDo() {
   const wrap = document.getElementById('bbuWontDo');
-  const tasks = getBbuTasks().filter(t => !t.parentId && t.wontDo);
+  const all = getBbuTasks();
+  const tasks = all.filter(t => !t.parentId && t.wontDo);
   wrap.innerHTML = '';
   if (!tasks.length) return;
   const box = document.createElement('div');
@@ -813,7 +814,7 @@ function renderBbuWontDo() {
   const list = document.createElement('div');
   list.className = 'bbu-wontdo-list';
   list.style.display = 'none';
-  tasks.sort(bbuSortTasks).forEach(t => list.appendChild(createBbuTaskEl(t)));
+  bbuRenderTree(list, all, tasks.slice().sort(bbuSortTasks), {});
   h.addEventListener('click', () => {
     const open = list.style.display !== 'none';
     list.style.display = open ? 'none' : '';
@@ -844,18 +845,32 @@ function createBbuTaskEl(task, opts) {
       meta.push(`<span class="bbu-due-chip ${bbuIsOverdue(task) ? 'overdue' : ''}">${bbuDueLabel(task)}${task.time ? ' · ' + bbuTimeLabel(task) : ''}</span>`);
     }
   }
-  row.innerHTML = `<div class="bbu-check ${task.completed ? 'checked' : ''}"></div><div class="bbu-task-main"><span class="bbu-task-name">${esc(task.name)}</span>${desc}${meta.length ? `<span class="bbu-task-meta">${meta.join('')}</span>` : ''}</div>`;
+  row.innerHTML = `<div class="bbu-check ${task.completed ? 'checked' : ''}"></div><div class="bbu-task-main"><span class="bbu-task-name">${esc(task.name)}</span>${desc}</div>${meta.length ? `<div class="bbu-task-meta">${meta.join('')}</div>` : ''}`;
   row.addEventListener('click', (e) => { if (e.target.closest('.bbu-check')) return; openBbuModal({ mode: 'edit', editId: task.id }); });
   row.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); openBbuContextMenu(e, task.id); });
   row.querySelector('.bbu-check').addEventListener('click', (e) => { e.stopPropagation(); bbuToggleComplete(task.id); });
-  const kids = bbuChildren(getBbuTasks(), task.id).sort(bbuSortTasks);
+  return row;
+}
+
+// Render a task + its descendants as an indented tree list. Each task is a
+// flat list row; children are grouped into a `.bbu-subtasks` guide block that
+// draws the vertical connector, so a parent is a row in the list rather than
+// an "object" wrapping its subtasks.
+function bbuRenderTree(container, tasks, items, opts) {
+  items.forEach(t => bbuAppendTree(container, tasks, t, opts, 0));
+}
+function bbuAppendTree(container, tasks, task, opts, depth) {
+  const row = createBbuTaskEl(task, opts);
+  row.dataset.depth = depth;
+  if (depth > 0) row.classList.add('bbu-tree-child');
+  container.appendChild(row);
+  const kids = bbuChildren(tasks, task.id).sort(bbuSortTasks);
   if (kids.length) {
     const sub = document.createElement('div');
     sub.className = 'bbu-subtasks';
-    kids.forEach(k => sub.appendChild(createBbuTaskEl(k, opts)));
-    row.appendChild(sub);
+    kids.forEach(k => bbuAppendTree(sub, tasks, k, opts, depth + 1));
+    container.appendChild(sub);
   }
-  return row;
 }
 
 function renderBbuList() {
@@ -878,7 +893,7 @@ function renderBbuList() {
     gh.className = 'bbu-list-group-header';
     gh.innerHTML = `<span class="bbu-q-dot" style="background:${q.color}"></span><span class="bbu-q-title">${q.title}</span><span class="bbu-q-hint">${q.hint}</span><span class="bbu-q-count">${qTasks.length}</span>`;
     g.appendChild(gh);
-    qTasks.forEach(t => g.appendChild(createBbuTaskEl(t)));
+    bbuRenderTree(g, tasks, qTasks, {});
     wrap.appendChild(g);
     shown += qTasks.length;
   });
@@ -890,7 +905,7 @@ function renderBbuList() {
     gh.className = 'bbu-list-group-header';
     gh.innerHTML = `<span class="bbu-q-title">COMPLETED</span><span class="bbu-q-count">${completed.length}</span>`;
     g.appendChild(gh);
-    completed.sort(bbuSortTasks).forEach(t => g.appendChild(createBbuTaskEl(t)));
+    bbuRenderTree(g, tasks, completed.slice().sort(bbuSortTasks), {});
     wrap.appendChild(g);
   }
   const wontdo = topLevel.filter(t => t.wontDo);
@@ -901,7 +916,7 @@ function renderBbuList() {
     gh.className = 'bbu-list-group-header';
     gh.innerHTML = `<span class="bbu-q-title">WON'T DO</span><span class="bbu-q-count">${wontdo.length}</span>`;
     g.appendChild(gh);
-    wontdo.sort(bbuSortTasks).forEach(t => g.appendChild(createBbuTaskEl(t)));
+    bbuRenderTree(g, tasks, wontdo.slice().sort(bbuSortTasks), {});
     wrap.appendChild(g);
   }
   if (shown === 0 && completed.length === 0 && wontdo.length === 0) {

@@ -2135,9 +2135,12 @@ input[type="time"].form-input {
 
 .bbu-quadrant-body {
   flex: 1;
-  padding: 8px;
+  min-height: 110px;
+  padding: 6px 6px 8px;
   overflow-y: auto;
-  max-height: 340px;
+  overflow-x: auto;
+  max-height: clamp(200px, 50vh, 620px);
+  -webkit-overflow-scrolling: touch;
 }
 
 .bbu-q-empty {
@@ -2225,27 +2228,22 @@ input[type="time"].form-input {
   border-top: 1px dashed var(--border-color);
 }
 
-/* ---- BBU task rows ---- */
+/* ---- BBU task rows (flat list) ---- */
 .bbu-task {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: var(--radius);
-  border: 1px solid transparent;
-  border-left: 2px solid transparent;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.12s;
+  transition: background 0.12s;
 }
 
 .bbu-task:hover {
   background: var(--bg-tertiary);
-  border-color: var(--border-color);
-  border-left-color: var(--tc, var(--accent));
 }
 
 .bbu-task.pinned {
-  border-left-color: var(--tc, var(--accent));
   background: rgba(107, 125, 179, 0.06);
 }
 
@@ -2266,7 +2264,6 @@ input[type="time"].form-input {
   border: 2px solid var(--text-muted);
   flex-shrink: 0;
   cursor: pointer;
-  margin-top: 1px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2321,6 +2318,7 @@ input[type="time"].form-input {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .bbu-flag {
@@ -2339,6 +2337,7 @@ input[type="time"].form-input {
   border: 1px solid var(--border-color);
   padding: 1px 7px;
   border-radius: 8px;
+  white-space: nowrap;
 }
 
 .bbu-due-chip.overdue {
@@ -2346,14 +2345,30 @@ input[type="time"].form-input {
   border-color: var(--danger);
 }
 
+/* ---- Subtask tree (indented list with guide lines) ---- */
 .bbu-subtasks {
-  margin: 4px 0 0 18px;
+  margin: 2px 0 2px 18px;
   padding-left: 12px;
-  border-left: 1px dashed var(--border-color);
+  border-left: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   gap: 2px;
-  width: calc(100% - 18px);
+}
+
+/* elbow connector: guide line -> child row */
+.bbu-subtasks > .bbu-task {
+  position: relative;
+}
+
+.bbu-subtasks > .bbu-task::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 16px;
+  width: 12px;
+  height: 0;
+  border-top: 1px solid var(--border-color);
+  pointer-events: none;
 }
 
 /* ---- BBU list view ---- */
