@@ -80,6 +80,19 @@ function saveBbuTasksForInstance(instanceId, tasks) {
 function getBbuTasks() { return getBbuTasksForInstance(getActiveInstanceId()); }
 function saveBbuTasks(tasks) { saveBbuTasksForInstance(getActiveInstanceId(), tasks); }
 
+function getBbuCategoriesForInstance(instanceId) {
+  try { const d = JSON.parse(localStorage.getItem('butime_bbu_data_' + instanceId)) || {}; return d.bbuCategories || []; }
+  catch { return []; }
+}
+function saveBbuCategoriesForInstance(instanceId, cats) {
+  let d = {};
+  try { d = JSON.parse(localStorage.getItem('butime_bbu_data_' + instanceId)) || {}; } catch { d = {}; }
+  d.bbuCategories = cats;
+  localStorage.setItem('butime_bbu_data_' + instanceId, JSON.stringify(d));
+}
+function getBbuCategories() { return getBbuCategoriesForInstance(getActiveInstanceId()); }
+function saveBbuCategories(cats) { saveBbuCategoriesForInstance(getActiveInstanceId(), cats); }
+
 /* ---- Migrate old global BBU storage into the active instance ---- */
 function migrateBbuData() {
   const old = localStorage.getItem('butime_bbu_tasks');
@@ -147,9 +160,11 @@ function exportAllData() {
   const instances = getInstances();
   const instancesData = {};
   const bbuInstancesData = {};
+  const bbuInstancesCategories = {};
   instances.forEach(inst => {
     instancesData[inst.id] = getInstanceData(inst.id);
     bbuInstancesData[inst.id] = getBbuTasksForInstance(inst.id);
+    bbuInstancesCategories[inst.id] = getBbuCategoriesForInstance(inst.id);
   });
   const payload = {
     butime: '1.2',
@@ -159,6 +174,7 @@ function exportAllData() {
     instances: instances,
     instancesData: instancesData,
     bbuInstancesData: bbuInstancesData,
+    bbuInstancesCategories: bbuInstancesCategories,
     mode: getMode(),
     bbuView: getBbuView(),
     bbuCalMode: getBbuCalMode(),
@@ -205,5 +221,10 @@ function importAllData(jsonStr) {
     });
   } else if (payload.bbuTasks) {
     saveBbuTasksForInstance(getActiveInstanceId(), payload.bbuTasks);
+  }
+  if (payload.bbuInstancesCategories) {
+    Object.keys(payload.bbuInstancesCategories).forEach(id => {
+      saveBbuCategoriesForInstance(id, payload.bbuInstancesCategories[id] || []);
+    });
   }
 }

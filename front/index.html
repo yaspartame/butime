@@ -489,6 +489,7 @@
       <div class="bbu-modal-desc">
         <textarea id="bbuDescInput" class="bbu-desc-input" rows="1" placeholder="Add a description (optional)" maxlength="1000"></textarea>
       </div>
+      <button type="button" class="bbu-color-open-btn" id="bbuColorOpenBtn" style="display:none">🎨 Change colour</button>
       <div class="bbu-modal-foot">
         <div class="bbu-modal-actions">
           <button class="btn btn-cancel" id="bbuModalCancelBtn">CANCEL</button>
@@ -522,6 +523,15 @@
           <label class="bbu-color-hex-label">HEX</label>
           <input type="text" id="bbuColorHex" class="bbu-color-hex" maxlength="7" spellcheck="false" autocomplete="off">
           <input type="color" id="bbuColorNative" class="bbu-color-native" title="Native picker" aria-label="Native picker">
+        </div>
+        <div class="bbu-color-cat">
+          <span class="bbu-color-cat-label">COLOUR CATEGORY</span>
+          <div class="bbu-color-cat-field" id="bbuColorCatField">
+            <input type="text" id="bbuColorCatInput" class="bbu-color-cat-input" placeholder="Add a category" autocomplete="off" spellcheck="false">
+            <button type="button" class="bbu-color-cat-btn" id="bbuColorCatAdd" title="Add category">+</button>
+            <button type="button" class="bbu-color-cat-btn bbu-color-cat-toggle" id="bbuColorCatToggle" title="Categories">▾</button>
+          </div>
+          <div class="bbu-color-cat-list" id="bbuColorCatList" style="display:none"></div>
         </div>
         <div class="bbu-color-presets">
           <span class="bbu-color-presets-label">PRESETS</span>
