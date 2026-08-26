@@ -850,12 +850,24 @@ function renderBbuCalMonth() {
     num.className = 'bbu-cal-day-num';
     num.textContent = d.getDate();
     col.appendChild(num);
-    if (dayTasks.length) {
-      const tl = document.createElement('div');
-      tl.className = 'bbu-cal-day-tasks';
-      // The colour dot (opens the colour wheel) appears in month view (and week view).
-      dayTasks.forEach(t => tl.appendChild(createBbuTaskEl(t, { compact: true, colorEdit: true })));
-      col.appendChild(tl);
+    const nTasks = dayTasks.filter(t => t.type !== 'event').length;
+    const nEvents = dayTasks.filter(t => t.type === 'event').length;
+    if (nTasks || nEvents) {
+      const counts = document.createElement('div');
+      counts.className = 'bbu-cal-day-counts';
+      if (nTasks) {
+        const s = document.createElement('span');
+        s.className = 'bbu-cal-day-count task';
+        s.textContent = `${nTasks} task${nTasks > 1 ? 's' : ''}`;
+        counts.appendChild(s);
+      }
+      if (nEvents) {
+        const s = document.createElement('span');
+        s.className = 'bbu-cal-day-count event';
+        s.textContent = `${nEvents} event${nEvents > 1 ? 's' : ''}`;
+        counts.appendChild(s);
+      }
+      col.appendChild(counts);
     }
 
     // Right-click a day cell -> create-task menu with the date pre-set
@@ -884,7 +896,7 @@ function renderBbuCalOverdue(tasks) {
   box.appendChild(t);
   const list = document.createElement('div');
   list.className = 'bbu-cal-overdue-list';
-  bbuRenderTree(list, getBbuTasks(), overdue, {});
+  bbuRenderTree(list, getBbuTasks(), overdue, { noDue: true });
   box.appendChild(list);
   strip.appendChild(box);
 }
@@ -971,6 +983,7 @@ function createBbuTaskEl(task, opts) {
   if (task.type === 'event') row.classList.add('bbu-event');
   const compact = opts && opts.compact;
   const colorEdit = opts && opts.colorEdit;
+  const noDue = opts && opts.noDue;
   const q = bbuQuadrantOf(task);
   row.style.setProperty('--tc', bbuColorOf(task));
   const desc = (!compact && task.description) ? `<span class="bbu-task-desc">${esc(task.description)}</span>` : '';
@@ -978,12 +991,8 @@ function createBbuTaskEl(task, opts) {
   if (task.priority) meta.push(`<span class="bbu-flag" style="color:${bbuPriorityMeta(task.priority).color}">${svgFlag()}</span>`);
   if (task.pinned) meta.push('<span class="bbu-pin">📌</span>');
   if (colorEdit) meta.push(`<button class="bbu-task-color" style="background:${bbuColorOf(task)}" title="Edit colour"></button>`);
-  if (task.dueDate) {
-    if (compact) {
-      if (task.time) meta.push(`<span class="bbu-due-chip">${bbuTimeLabel(task)}</span>`);
-    } else {
-      meta.push(`<span class="bbu-due-chip ${bbuIsOverdue(task) ? 'overdue' : ''}">${bbuDueLabel(task)}${task.time ? ' · ' + bbuTimeLabel(task) : ''}</span>`);
-    }
+  if (task.dueDate && !compact && !noDue) {
+    meta.push(`<span class="bbu-due-chip ${bbuIsOverdue(task) ? 'overdue' : ''}">${bbuDueLabel(task)}${task.time ? ' · ' + bbuTimeLabel(task) : ''}</span>`);
   }
   row.innerHTML = `<div class="bbu-check ${task.completed ? 'checked' : ''}"></div><div class="bbu-task-main"><span class="bbu-task-name">${esc(task.name)}</span>${desc}</div>${meta.length ? `<div class="bbu-task-meta">${meta.join('')}</div>` : ''}`;
   row.addEventListener('click', (e) => { if (e.target.closest('.bbu-check')) return; if (e.target.closest('.bbu-task-color')) return; openBbuModal({ mode: 'edit', editId: task.id }); });
