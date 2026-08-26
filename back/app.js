@@ -28,6 +28,9 @@ let state = {
   bbuModal: null,
   bbuMenuTaskId: null,
   bbuMenuCreateDate: null,
+  bbuColorTaskId: null,
+  bbuColor: null,
+  bbuWeekDrag: null,
 };
 
 function getMonday(date) {
@@ -366,8 +369,8 @@ document.getElementById('todoModalCancel').addEventListener('click', () => close
 
 function openModalById(id) { document.getElementById(id).classList.add('active'); }
 function closeModalById(id) { document.getElementById(id).classList.remove('active'); }
-['modalOverlay','catModalOverlay','linkModalOverlay','todoModalOverlay','instanceModalOverlay','bbuModalOverlay','modeModalOverlay','pomoSettingsOverlay'].forEach(id => { document.getElementById(id).addEventListener('click', (e) => { if (e.target === document.getElementById(id)) closeModalById(id); }); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeBbuMenu(); closePomoSettings(); ['modalOverlay','catModalOverlay','linkModalOverlay','todoModalOverlay','instanceModalOverlay','bbuModalOverlay','modeModalOverlay','pomoSettingsOverlay'].forEach(id => { if (document.getElementById(id).classList.contains('active')) closeModalById(id); }); } });
+['modalOverlay','catModalOverlay','linkModalOverlay','todoModalOverlay','instanceModalOverlay','bbuModalOverlay','bbuColorOverlay','modeModalOverlay','pomoSettingsOverlay'].forEach(id => { document.getElementById(id).addEventListener('click', (e) => { if (e.target === document.getElementById(id)) closeModalById(id); }); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeBbuMenu(); closePomoSettings(); ['modalOverlay','catModalOverlay','linkModalOverlay','todoModalOverlay','instanceModalOverlay','bbuModalOverlay','bbuColorOverlay','modeModalOverlay','pomoSettingsOverlay'].forEach(id => { if (document.getElementById(id).classList.contains('active')) closeModalById(id); }); } });
 
 function rerenderCurrentView() { applyModeUI(); }
 document.getElementById('prevWeek').addEventListener('click', () => { state.weekOffset--; rerenderCurrentView(); });
@@ -405,7 +408,55 @@ function svgCalX() { return '<svg viewBox="0 0 24 24" width="16" height="16"><re
 function svgPlus() { return '<svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'; }
 
 function bbuQuadrantOf(t) { return BBU_QUADRANTS.find(q => q.urgent === !!t.urgent && q.important === !!t.important) || BBU_QUADRANTS[3]; }
+function bbuColorOf(t) { return t.color || bbuQuadrantOf(t).color; }
 function bbuPriorityMeta(p) { return BBU_PRIORITIES.find(x => x.id === p) || BBU_PRIORITIES[0]; }
+
+// ---- Hex / HSV helpers (used by the colour wheel) ----
+function hexToRgb(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || '').trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+function rgbToHex(r, g, b) {
+  const c = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
+  return '#' + c(r) + c(g) + c(b);
+}
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  let h = 0;
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  const s = max === 0 ? 0 : d / max;
+  return { h, s, v: max };
+}
+function hsvToRgb(h, s, v) {
+  h = ((h % 360) + 360) % 360;
+  const c = v * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v - c;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  return { r: (r + m) * 255, g: (g + m) * 255, b: (b + m) * 255 };
+}
+function hexToHsv(hex) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return { h: 210, s: 0.7, v: 0.75 };
+  return rgbToHsv(rgb.r, rgb.g, rgb.b);
+}
+function hsvToHex(h, s, v) {
+  const { r, g, b } = hsvToRgb(h, s, v);
+  return rgbToHex(r, g, b);
+}
 function bbuChildren(tasks, id) { return tasks.filter(t => t.parentId === id); }
 function bbuDescendants(tasks, id) {
   const out = [];
@@ -425,18 +476,41 @@ function bbuDueLabel(t) {
   return sameYear ? s : s + ' ' + d.getFullYear();
 }
 function bbuIsOverdue(t) { if (!t.dueDate) return false; const d = new Date(t.dueDate + 'T00:00:00'); const n = new Date(); n.setHours(0, 0, 0, 0); return d < n; }
-function bbuTimeLabel(t) {
-  if (!t || !t.time) return '';
-  const [h, m] = t.time.split(':').map(Number);
+function bbuTimeOf(time) {
+  if (!time) return '';
+  const [h, m] = time.split(':').map(Number);
   if (isNaN(h) || isNaN(m)) return '';
   const ampm = h >= 12 ? 'PM' : 'AM';
   const hh = h % 12 || 12;
   return `${hh}:${String(m).padStart(2, '0')} ${ampm}`;
 }
+function bbuTimeLabel(t) {
+  if (!t || !t.time) return '';
+  const start = bbuTimeOf(t.time);
+  if (t.type === 'event' && t.endTime) return `${start} – ${bbuTimeOf(t.endTime)}`;
+  return start;
+}
 function bbuTimeToMin(t) {
   if (!t) return 0;
   const [h, m] = t.split(':').map(Number);
   return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+}
+function bbuMinToTime(min) {
+  const m = Math.max(0, Math.min(1439, Math.round(min)));
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+// Snap a minute-of-day value to the nearest 15 minutes (used for drag-create).
+function bbuSnapMin(min) {
+  return Math.round(min / 15) * 15;
+}
+function bbuAddHour(t) {
+  return bbuMinToTime(bbuTimeToMin(t) + 60);
+}
+function bbuNextFullHour() {
+  const n = new Date();
+  n.setMinutes(0, 0, 0);
+  n.setHours(n.getHours() + 1);
+  return bbuMinToTime(n.getHours() * 60);
 }
 function bbuHourLabel(h) {
   const ampm = h >= 12 ? 'PM' : 'AM';
@@ -496,6 +570,8 @@ function bbuSyncChildren(tasks, parentId) {
       t.important = p.important;
       t.priority = p.priority;
       t.time = p.time;
+      t.endTime = p.endTime;
+      t.type = p.type;
       bbuSyncChildren(tasks, t.id);
     }
   });
@@ -592,7 +668,8 @@ function renderBbuCalWeek() {
     }).sort(bbuSortTasks);
     if (unscheduled.length) {
       hasAllday = true;
-      unscheduled.forEach(t => cell.appendChild(createBbuTaskEl(t, { compact: true })));
+      // Colour dot (opens the colour wheel) is available in week view too.
+      unscheduled.forEach(t => cell.appendChild(createBbuTaskEl(t, { compact: true, colorEdit: true })));
     }
     allday.appendChild(cell);
   });
@@ -642,11 +719,17 @@ function renderBbuCalWeek() {
     });
 
     // Timed tasks pinned to their exact time slot, nested into columns when
-    // they overlap (Google Calendar style).
+    // they overlap (Google Calendar style). Events use their real end time.
     const timed = dayTasks.filter(t => t.time && bbuTimeToMin(t.time) >= startHour * 60 && bbuTimeToMin(t.time) < endHour * 60);
-    bbuLayoutWeekEvents(timed.map(t => ({ task: t, start: bbuTimeToMin(t.time), end: bbuTimeToMin(t.time) + BBU_EVENT_DURATION_MIN }))).forEach(ev => {
+    const layoutItems = timed.map(t => {
+      const start = bbuTimeToMin(t.time);
+      const end = (t.type === 'event' && t.endTime) ? bbuTimeToMin(t.endTime) : start + BBU_EVENT_DURATION_MIN;
+      return { task: t, start, end };
+    });
+    bbuLayoutWeekEvents(layoutItems).forEach(ev => {
       const top = ((ev.start - startHour * 60) / 60) * HOUR_H;
-      const el = createBbuTaskEl(ev.task, { compact: true });
+      // Colour dot (opens the colour wheel) is available in week view too.
+      const el = createBbuTaskEl(ev.task, { compact: true, colorEdit: true });
       el.classList.add('bbu-cal-event');
       el.style.top = Math.max(0, top) + 'px';
       el.style.left = `calc(${ev.left}% + 2px)`;
@@ -670,6 +753,10 @@ function renderBbuCalWeek() {
       openBbuDayCreateMenu(e, iso, d);
     });
 
+    // Hold left-click and drag DOWN to stretch out a new event (drag start =
+    // event start, release point = event end). Dragging up does nothing.
+    bbuInitWeekDayDrag(col, iso, startHour, HOUR_H);
+
     body.appendChild(col);
   });
 
@@ -682,6 +769,55 @@ function renderBbuCalWeek() {
   }
   renderBbuCalOverdue(tasks);
 }
+
+function bbuInitWeekDayDrag(col, iso, startHour, HOUR_H) {
+  col.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest('.bbu-cal-event, .bbu-task, .bbu-check, .bbu-cal-drag-event')) return;
+    const rect = col.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    if (y < 0 || y > col.offsetHeight) return;
+    const gridMax = startHour * 60 + (col.offsetHeight / HOUR_H) * 60;
+    const startMin = Math.min(Math.max(bbuSnapMin(startHour * 60 + (y / HOUR_H) * 60), startHour * 60), gridMax);
+    state.bbuWeekDrag = { col, iso, startHour, HOUR_H, startMin, endMin: startMin, el: null };
+    document.body.classList.add('bbu-dragging');
+    e.preventDefault();
+  });
+}
+// Global drag handlers for the week-view event stretch.
+document.addEventListener('mousemove', (e) => {
+  const d = state.bbuWeekDrag;
+  if (!d || !d.col) return;
+  const rect = d.col.getBoundingClientRect();
+  const y = e.clientY - rect.top;
+  const gridMax = d.startHour * 60 + (d.col.offsetHeight / d.HOUR_H) * 60;
+  const endMin = Math.min(Math.max(bbuSnapMin(d.startHour * 60 + (y / d.HOUR_H) * 60), d.startHour * 60), gridMax);
+  d.endMin = endMin;
+  // Only downward drags show feedback; if the mouse goes back up, hide it.
+  if (endMin <= d.startMin) {
+    if (d.el) d.el.style.display = 'none';
+    return;
+  }
+  if (!d.el) {
+    d.el = document.createElement('div');
+    d.el.className = 'bbu-cal-drag-event';
+    d.col.appendChild(d.el);
+  }
+  d.el.style.display = '';
+  const top = ((d.startMin - d.startHour * 60) / 60) * d.HOUR_H;
+  const h = ((endMin - d.startMin) / 60) * d.HOUR_H;
+  d.el.style.top = top + 'px';
+  d.el.style.height = Math.max(20, h) + 'px';
+});
+document.addEventListener('mouseup', () => {
+  const d = state.bbuWeekDrag;
+  if (!d) return;
+  state.bbuWeekDrag = null;
+  document.body.classList.remove('bbu-dragging');
+  if (d.el) d.el.remove();
+  if (!d.endMin || d.endMin <= d.startMin) return;
+  openBbuModal({ mode: 'create', dueDate: d.iso, type: 'event', time: bbuMinToTime(d.startMin), endTime: bbuMinToTime(d.endMin) });
+});
 
 function renderBbuCalMonth() {
   const today = new Date();
@@ -717,7 +853,8 @@ function renderBbuCalMonth() {
     if (dayTasks.length) {
       const tl = document.createElement('div');
       tl.className = 'bbu-cal-day-tasks';
-      dayTasks.forEach(t => tl.appendChild(createBbuTaskEl(t, { compact: true })));
+      // The colour dot (opens the colour wheel) appears in month view (and week view).
+      dayTasks.forEach(t => tl.appendChild(createBbuTaskEl(t, { compact: true, colorEdit: true })));
       col.appendChild(tl);
     }
 
@@ -831,13 +968,16 @@ function createBbuTaskEl(task, opts) {
   if (task.completed) row.classList.add('completed');
   if (task.wontDo) row.classList.add('wontdo');
   if (task.pinned) row.classList.add('pinned');
+  if (task.type === 'event') row.classList.add('bbu-event');
   const compact = opts && opts.compact;
+  const colorEdit = opts && opts.colorEdit;
   const q = bbuQuadrantOf(task);
-  row.style.setProperty('--tc', q.color);
+  row.style.setProperty('--tc', bbuColorOf(task));
   const desc = (!compact && task.description) ? `<span class="bbu-task-desc">${esc(task.description)}</span>` : '';
   const meta = [];
   if (task.priority) meta.push(`<span class="bbu-flag" style="color:${bbuPriorityMeta(task.priority).color}">${svgFlag()}</span>`);
   if (task.pinned) meta.push('<span class="bbu-pin">📌</span>');
+  if (colorEdit) meta.push(`<button class="bbu-task-color" style="background:${bbuColorOf(task)}" title="Edit colour"></button>`);
   if (task.dueDate) {
     if (compact) {
       if (task.time) meta.push(`<span class="bbu-due-chip">${bbuTimeLabel(task)}</span>`);
@@ -846,9 +986,11 @@ function createBbuTaskEl(task, opts) {
     }
   }
   row.innerHTML = `<div class="bbu-check ${task.completed ? 'checked' : ''}"></div><div class="bbu-task-main"><span class="bbu-task-name">${esc(task.name)}</span>${desc}</div>${meta.length ? `<div class="bbu-task-meta">${meta.join('')}</div>` : ''}`;
-  row.addEventListener('click', (e) => { if (e.target.closest('.bbu-check')) return; openBbuModal({ mode: 'edit', editId: task.id }); });
+  row.addEventListener('click', (e) => { if (e.target.closest('.bbu-check')) return; if (e.target.closest('.bbu-task-color')) return; openBbuModal({ mode: 'edit', editId: task.id }); });
   row.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); openBbuContextMenu(e, task.id); });
   row.querySelector('.bbu-check').addEventListener('click', (e) => { e.stopPropagation(); bbuToggleComplete(task.id); });
+  const colorBtn = row.querySelector('.bbu-task-color');
+  if (colorBtn) colorBtn.addEventListener('click', (e) => { e.stopPropagation(); openBbuColorModal(task.id); });
   return row;
 }
 
@@ -933,6 +1075,8 @@ function openBbuModal(opts) {
   let priority = 0;
   let dueDate = null;
   let time = null;
+  let endTime = null;
+  let type = opts.type === 'event' ? 'event' : 'task';
   let name = '';
   let description = '';
   if (opts.mode === 'edit' && opts.editId) {
@@ -942,6 +1086,8 @@ function openBbuModal(opts) {
     priority = t.priority || 0;
     dueDate = t.dueDate || null;
     time = t.time || null;
+    endTime = t.endTime || null;
+    type = t.type === 'event' ? 'event' : 'task';
     name = t.name;
     description = t.description || '';
   } else if (opts.mode === 'subtask' && opts.parentId) {
@@ -951,17 +1097,24 @@ function openBbuModal(opts) {
     priority = p.priority || 0;
     dueDate = p.dueDate || null;
     time = p.time || null;
+    endTime = p.endTime || null;
+    type = p.type === 'event' ? 'event' : 'task';
   } else if (opts.mode === 'create' && opts.dueDate) {
     dueDate = opts.dueDate;
+    if (opts.time) time = opts.time;
+    if (opts.endTime) endTime = opts.endTime;
+    if (opts.type === 'event') type = 'event';
   }
-  state.bbuModal = { mode: opts.mode || 'create', parentId: opts.parentId || null, editId: opts.editId || null, quadrant, priority, dueDate, time, description };
+  state.bbuModal = { mode: opts.mode || 'create', parentId: opts.parentId || null, editId: opts.editId || null, quadrant, priority, dueDate, time, endTime, type, description };
   document.getElementById('bbuTaskInput').value = name;
   const descInput = document.getElementById('bbuDescInput');
   descInput.value = description || '';
   descInput.style.height = 'auto';
   renderBbuQuadrantRow();
   renderBbuDue();
+  renderBbuType();
   renderBbuTime();
+  renderBbuEndTime();
   renderBbuFlag();
   closeBbuPanels();
   document.getElementById('bbuModalOverlay').classList.add('active');
@@ -1000,13 +1153,29 @@ function renderBbuDue() {
   custom.classList.toggle('muted', !t);
   document.getElementById('bbuDateInput').value = t || '';
 }
+function renderBbuType() {
+  document.querySelectorAll('#bbuTypeToggle .bbu-type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === state.bbuModal.type));
+}
 function renderBbuTime() {
   const field = document.getElementById('bbuTimeField');
   const el = document.getElementById('bbuTimeText');
+  const isEvent = state.bbuModal.type === 'event';
   document.getElementById('bbuTimeInput').value = state.bbuModal.time || '';
-  el.textContent = state.bbuModal.time ? bbuTimeLabel({ time: state.bbuModal.time }) : 'Time';
+  el.textContent = state.bbuModal.time
+    ? (isEvent ? bbuTimeOf(state.bbuModal.time) : bbuTimeLabel({ time: state.bbuModal.time }))
+    : (isEvent ? 'Start' : 'Time');
   el.classList.toggle('muted', !state.bbuModal.time);
   field.classList.toggle('has-value', !!state.bbuModal.time);
+}
+function renderBbuEndTime() {
+  const isEvent = state.bbuModal.type === 'event';
+  const field = document.getElementById('bbuEndTimeField');
+  const el = document.getElementById('bbuEndTimeText');
+  document.getElementById('bbuEndTimeInput').value = state.bbuModal.endTime || '';
+  field.style.display = isEvent ? '' : 'none';
+  el.textContent = state.bbuModal.endTime ? bbuTimeOf(state.bbuModal.endTime) : 'End';
+  el.classList.toggle('muted', !state.bbuModal.endTime);
+  field.classList.toggle('has-value', !!state.bbuModal.endTime);
 }
 function renderBbuFlag() {
   document.getElementById('bbuFlagBtn').style.color = bbuPriorityMeta(state.bbuModal.priority).color;
@@ -1017,6 +1186,12 @@ function bbuModalSave() {
   const description = document.getElementById('bbuDescInput').value.trim();
   const m = state.bbuModal;
   if (!m) return;
+  // Events need a valid end time after the start.
+  let time = m.time;
+  let endTime = m.type === 'event' ? m.endTime : null;
+  if (m.type === 'event' && time) {
+    if (!endTime || bbuTimeToMin(endTime) <= bbuTimeToMin(time)) endTime = bbuAddHour(time);
+  }
   const tasks = getBbuTasks();
   const now = new Date().toISOString();
   if (m.mode === 'edit' && m.editId) {
@@ -1027,19 +1202,138 @@ function bbuModalSave() {
       t.important = m.quadrant.important;
       t.priority = m.priority;
       t.dueDate = m.dueDate;
-      t.time = m.time;
+      t.time = time;
+      t.endTime = endTime;
+      t.type = m.type;
       t.description = description || '';
       bbuSyncChildren(tasks, t.id);
     }
   } else if (m.mode === 'subtask' && m.parentId) {
     const p = tasks.find(x => x.id === m.parentId);
-    if (p) tasks.push({ id: genId(), name, parentId: p.id, urgent: p.urgent, important: p.important, priority: p.priority, dueDate: p.dueDate, time: p.time, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now });
+    if (p) tasks.push({ id: genId(), name, parentId: p.id, urgent: p.urgent, important: p.important, priority: p.priority, dueDate: p.dueDate, time, endTime, type: m.type, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now });
   } else {
-    tasks.push({ id: genId(), name, parentId: null, urgent: m.quadrant.urgent, important: m.quadrant.important, priority: m.priority, dueDate: m.dueDate, time: m.time, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now });
+    tasks.push({ id: genId(), name, parentId: null, urgent: m.quadrant.urgent, important: m.quadrant.important, priority: m.priority, dueDate: m.dueDate, time, endTime, type: m.type, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now });
   }
   saveBbuTasks(tasks);
   closeBbuModal();
   renderBbu();
+}
+
+function bbuSetType(taskId, type) {
+  const tasks = getBbuTasks();
+  const t = tasks.find(x => x.id === taskId);
+  if (!t) return;
+  t.type = type;
+  if (type === 'event') {
+    if (!t.endTime) t.endTime = t.time ? bbuAddHour(t.time) : '09:00';
+  } else {
+    t.endTime = null;
+  }
+  bbuSyncChildren(tasks, taskId);
+  saveBbuTasks(tasks);
+  renderBbu();
+}
+
+// ---- Colour wheel modal (available in the month view only) ----
+const BBU_COLOR_PRESETS = ['#e0535a', '#f2994a', '#56ccf2', '#4ade80', '#6b7db3', '#a78bfa', '#f472b6', '#fbbf24', '#94a3b8', '#374151'];
+function openBbuColorModal(taskId) {
+  const t = getBbuTasks().find(x => x.id === taskId);
+  if (!t) return;
+  state.bbuColorTaskId = taskId;
+  const { h, s, v } = hexToHsv(bbuColorOf(t));
+  state.bbuColor = { h, s, v };
+  renderBbuColor();
+  openModalById('bbuColorOverlay');
+}
+function closeBbuColorModal() {
+  closeModalById('bbuColorOverlay');
+  state.bbuColorTaskId = null;
+  state.bbuColor = null;
+}
+function bbuColorHex() {
+  return state.bbuColor ? hsvToHex(state.bbuColor.h, state.bbuColor.s, state.bbuColor.v) : '#6b7db3';
+}
+function renderBbuColor() {
+  if (!state.bbuColor) return;
+  const hex = bbuColorHex();
+  document.getElementById('bbuColorPreview').style.background = hex;
+  document.getElementById('bbuColorHex').value = hex;
+  document.getElementById('bbuColorNative').value = hex;
+  const sv = document.getElementById('bbuColorSv');
+  sv.style.background = `linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, hsl(${state.bbuColor.h}, 100%, 50%))`;
+  const wheel = document.getElementById('bbuColorWheel');
+  const wr = wheel.getBoundingClientRect();
+  const cx = wr.width / 2, cy = wr.height / 2;
+  const R = Math.min(cx, cy) - 9;
+  const th = state.bbuColor.h * Math.PI / 180;
+  const wm = document.getElementById('bbuColorWheelMarker');
+  wm.style.left = (cx + Math.sin(th) * R) + 'px';
+  wm.style.top = (cy - Math.cos(th) * R) + 'px';
+  const svm = document.getElementById('bbuColorSvMarker');
+  svm.style.left = (state.bbuColor.s * 100) + '%';
+  svm.style.top = ((1 - state.bbuColor.v) * 100) + '%';
+}
+function bbuApplyColorInput(hex) {
+  const rgb = hexToRgb(hex);
+  if (!rgb || !state.bbuColor) return;
+  const { h, s, v } = rgbToHsv(rgb.r, rgb.g, rgb.b);
+  state.bbuColor.h = h; state.bbuColor.s = s; state.bbuColor.v = v;
+  renderBbuColor();
+}
+function bbuSetTaskColor(taskId, color) {
+  const tasks = getBbuTasks();
+  const t = tasks.find(x => x.id === taskId);
+  if (!t) return;
+  t.color = color;
+  saveBbuTasks(tasks);
+  renderBbu();
+}
+function initBbuColorModal() {
+  const wheel = document.getElementById('bbuColorWheel');
+  const sv = document.getElementById('bbuColorSv');
+  wheel.addEventListener('click', (e) => {
+    if (!state.bbuColor) return;
+    const r = wheel.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width / 2);
+    const dy = e.clientY - (r.top + r.height / 2);
+    state.bbuColor.h = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360;
+    renderBbuColor();
+  });
+  sv.addEventListener('click', (e) => {
+    if (!state.bbuColor) return;
+    const r = sv.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    const y = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+    state.bbuColor.s = x;
+    state.bbuColor.v = 1 - y;
+    renderBbuColor();
+  });
+  document.getElementById('bbuColorHex').addEventListener('input', (e) => bbuApplyColorInput(e.target.value));
+  document.getElementById('bbuColorNative').addEventListener('input', (e) => bbuApplyColorInput(e.target.value));
+  const presets = document.getElementById('bbuColorPresets');
+  BBU_COLOR_PRESETS.forEach(hex => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'bbu-color-preset';
+    b.style.background = hex;
+    b.title = hex;
+    b.addEventListener('click', () => bbuApplyColorInput(hex));
+    presets.appendChild(b);
+  });
+  document.getElementById('bbuColorReset').addEventListener('click', () => {
+    const t = getBbuTasks().find(x => x.id === state.bbuColorTaskId);
+    if (t && state.bbuColor) {
+      const { h, s, v } = hexToHsv(bbuQuadrantOf(t).color);
+      state.bbuColor = { h, s, v };
+      renderBbuColor();
+    }
+  });
+  document.getElementById('bbuColorSave').addEventListener('click', () => {
+    bbuSetTaskColor(state.bbuColorTaskId, bbuColorHex());
+    closeBbuColorModal();
+  });
+  document.getElementById('bbuColorCancel').addEventListener('click', closeBbuColorModal);
+  document.getElementById('bbuColorClose').addEventListener('click', closeBbuColorModal);
 }
 
 function bbuSetDueDate(taskId, date) {
@@ -1140,6 +1434,13 @@ function openBbuContextMenu(e, taskId) {
       </div>
     </div>
     <div class="bbu-menu-section">
+      <div class="bbu-menu-label"><span>Type</span></div>
+      <div class="bbu-menu-type-row">
+        <button class="bbu-mt ${t.type === 'event' ? '' : 'active'}" data-type="task">TASK</button>
+        <button class="bbu-mt ${t.type === 'event' ? 'active' : ''}" data-type="event">EVENT</button>
+      </div>
+    </div>
+    <div class="bbu-menu-section">
       <div class="bbu-menu-item" data-act="subtask">${svgPlus()} Add Subtask</div>
       <div class="bbu-menu-item" data-act="pomodoro">⏱ Add to Pomodoro</div>
       <div class="bbu-menu-item" data-act="pin">${t.pinned ? '📌 Unpin' : '📌 Pin'}</div>
@@ -1169,6 +1470,7 @@ function openBbuContextMenu(e, taskId) {
   const di = m.querySelector('#bbuMenuDateInput');
   if (di) di.addEventListener('change', () => { bbuSetDueDate(state.bbuMenuTaskId, di.value || null); closeBbuMenu(); });
   m.querySelectorAll('.bbu-pq').forEach(b => b.addEventListener('click', () => { bbuSetPriority(state.bbuMenuTaskId, parseInt(b.dataset.prio, 10)); closeBbuMenu(); }));
+  m.querySelectorAll('.bbu-mt').forEach(b => b.addEventListener('click', () => { bbuSetType(state.bbuMenuTaskId, b.dataset.type); closeBbuMenu(); }));
   m.querySelectorAll('.bbu-menu-item').forEach(it => it.addEventListener('click', () => {
     const act = it.dataset.act;
     if (act === 'subtask') openBbuModal({ mode: 'subtask', parentId: state.bbuMenuTaskId });
@@ -1187,6 +1489,7 @@ function openBbuDayCreateMenu(e, dateISO, date) {
     <div class="bbu-menu-header"><span class="bbu-q-dot" style="background:var(--accent)"></span><span class="bbu-menu-title">${formatDateNice(date)}</span></div>
     <div class="bbu-menu-section">
       <div class="bbu-menu-item" data-act="create">${svgPlus()} Create task</div>
+      <div class="bbu-menu-item" data-act="create-event">${svgCal()} Create event</div>
     </div>`;
   m.style.display = 'block';
   const mw = m.offsetWidth, mh = m.offsetHeight;
@@ -1197,6 +1500,10 @@ function openBbuDayCreateMenu(e, dateISO, date) {
   m.style.top = Math.max(4, y) + 'px';
   m.querySelectorAll('.bbu-menu-item').forEach(it => it.addEventListener('click', () => {
     if (it.dataset.act === 'create') openBbuModal({ mode: 'create', dueDate: state.bbuMenuCreateDate });
+    else if (it.dataset.act === 'create-event') {
+      const start = bbuNextFullHour();
+      openBbuModal({ mode: 'create', dueDate: state.bbuMenuCreateDate, type: 'event', time: start, endTime: bbuAddHour(start) });
+    }
     closeBbuMenu();
   }));
 }
@@ -1274,6 +1581,24 @@ function initBbuPanels() {
   document.getElementById('bbuTimeInput').addEventListener('change', (e) => { state.bbuModal.time = e.target.value || null; renderBbuTime(); });
   document.getElementById('bbuTimeClearBtn').addEventListener('click', (e) => { e.stopPropagation(); state.bbuModal.time = null; renderBbuTime(); });
 
+  const endTimeField = document.getElementById('bbuEndTimeField');
+  endTimeField.addEventListener('click', (e) => {
+    if (e.target.closest('#bbuEndTimeClearBtn')) return;
+    openNative(document.getElementById('bbuEndTimeInput'));
+  });
+  document.getElementById('bbuEndTimeInput').addEventListener('change', (e) => { state.bbuModal.endTime = e.target.value || null; renderBbuEndTime(); });
+  document.getElementById('bbuEndTimeClearBtn').addEventListener('click', (e) => { e.stopPropagation(); state.bbuModal.endTime = null; renderBbuEndTime(); });
+
+  document.querySelectorAll('#bbuTypeToggle .bbu-type-btn').forEach(b => b.addEventListener('click', () => {
+    state.bbuModal.type = b.dataset.type;
+    if (state.bbuModal.type === 'event' && !state.bbuModal.endTime && state.bbuModal.time) {
+      state.bbuModal.endTime = bbuAddHour(state.bbuModal.time);
+    }
+    renderBbuType();
+    renderBbuTime();
+    renderBbuEndTime();
+  }));
+
   document.getElementById('bbuCalPrev').addEventListener('click', () => bbuCalStep(-1));
   document.getElementById('bbuCalNext').addEventListener('click', () => bbuCalStep(1));
   document.getElementById('bbuCalToday').addEventListener('click', bbuCalToday);
@@ -1284,6 +1609,8 @@ function initBbuPanels() {
     setBbuCalMode(state.bbuCalMode);
     bbuCalToday();
   });
+
+  initBbuColorModal();
 }
 
 // Pomodoro Timer

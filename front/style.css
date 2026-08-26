@@ -2330,6 +2330,22 @@ input[type="time"].form-input {
   opacity: 0.8;
 }
 
+.bbu-task-color {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-card);
+  box-shadow: 0 0 0 1px var(--border-color);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: transform 0.12s;
+}
+
+.bbu-task-color:hover {
+  transform: scale(1.25);
+}
+
 .bbu-due-chip {
   font-family: var(--font-mono);
   font-size: 9px;
@@ -2436,6 +2452,41 @@ input[type="time"].form-input {
   padding: 12px 14px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   animation: modalIn 0.15s ease-out;
+}
+
+.bbu-modal-type-row {
+  display: flex;
+  justify-content: center;
+  padding-bottom: 8px;
+}
+
+.bbu-type-toggle {
+  display: flex;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.bbu-type-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  padding: 4px 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.bbu-type-btn:not(.active):hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.bbu-type-btn.active {
+  background: var(--accent);
+  color: var(--bg-primary);
 }
 
 .bbu-modal-top {
@@ -2836,6 +2887,36 @@ input[type="time"].form-input {
 .bbu-pq.active {
   opacity: 1;
   border-color: currentColor;
+}
+
+.bbu-menu-type-row {
+  display: flex;
+  gap: 6px;
+  padding: 2px 8px 6px;
+}
+
+.bbu-mt {
+  flex: 1;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.bbu-mt.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg-primary);
+}
+
+.bbu-mt:not(.active):hover {
+  color: var(--text-primary);
 }
 
 .bbu-menu-item {
@@ -3252,6 +3333,210 @@ input[type="time"].form-input {
 
 .bbu-cal-event .bbu-subtasks {
   display: none;
+}
+
+/* Drag-to-create event feedback (week view) */
+.bbu-cal-drag-event {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  z-index: 6;
+  min-height: 20px;
+  padding: 2px 4px;
+  background: color-mix(in srgb, var(--accent) 20%, var(--bg-card));
+  border: 1px dashed color-mix(in srgb, var(--accent) 65%, transparent);
+  border-left: 2px solid var(--accent);
+  border-radius: 5px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.bbu-cal-drag-event::after {
+  content: '⏱ New event';
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+}
+
+body.bbu-dragging,
+body.bbu-dragging * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ---- BBU colour wheel modal (month view) ---- */
+.bbu-color-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.bbu-color-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bbu-color-preview-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+}
+
+.bbu-color-preview-swatch {
+  width: 42px;
+  height: 22px;
+  border-radius: 5px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 0 0 1px var(--bg-secondary);
+}
+
+.bbu-color-pickers {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.bbu-color-wheel {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
+  border: 1px solid var(--border-color);
+  cursor: crosshair;
+  flex-shrink: 0;
+}
+
+.bbu-color-wheel-marker {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 0 4px rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.bbu-color-sv {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  cursor: crosshair;
+  flex-shrink: 0;
+}
+
+.bbu-color-sv-marker {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 0 4px rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.bbu-color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bbu-color-hex-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+}
+
+.bbu-color-hex {
+  flex: 1;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 6px 8px;
+  outline: none;
+  transition: border-color 0.15s;
+  min-width: 0;
+}
+
+.bbu-color-hex:focus {
+  border-color: var(--accent);
+}
+
+.bbu-color-native {
+  width: 40px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--bg-tertiary);
+  cursor: pointer;
+}
+
+.bbu-color-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bbu-color-presets-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+}
+
+.bbu-color-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bbu-color-preset {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-card);
+  box-shadow: 0 0 0 1px var(--border-color);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s;
+}
+
+.bbu-color-preset:hover {
+  transform: scale(1.2);
+}
+
+.bbu-color-reset {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.bbu-color-reset:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
 }
 
 /* ===== BBU RESPONSIVE ===== */

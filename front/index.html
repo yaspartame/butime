@@ -437,6 +437,12 @@
   <!-- ===== BBU TASK MODAL (quick add / edit) ===== -->
   <div class="modal-overlay" id="bbuModalOverlay">
     <div class="bbu-modal" id="bbuModal">
+      <div class="bbu-modal-type-row">
+        <div class="bbu-type-toggle" id="bbuTypeToggle" title="Task or event">
+          <button type="button" class="bbu-type-btn active" data-type="task">TASK</button>
+          <button type="button" class="bbu-type-btn" data-type="event">EVENT</button>
+        </div>
+      </div>
       <div class="bbu-modal-top">
         <div class="bbu-due-group">
           <button class="bbu-due-btn" id="bbuDueBtn" title="Set due date">
@@ -444,11 +450,18 @@
             <span class="bbu-due-text" id="bbuDueText">No date</span>
             <svg viewBox="0 0 8 5" width="8" height="5"><path d="M0 0l4 5 4-5z" fill="currentColor"/></svg>
           </button>
-          <div class="bbu-native-field" id="bbuTimeField" title="Set time (optional)">
+          <div class="bbu-native-field" id="bbuTimeField" title="Set start time (optional)">
             <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
             <span class="bbu-field-text muted" id="bbuTimeText">Time</span>
             <span class="bbu-field-clear" id="bbuTimeClearBtn" title="Clear time">✕</span>
             <input type="time" id="bbuTimeInput" class="bbu-native-input" tabindex="-1" aria-hidden="true">
+            <svg viewBox="0 0 8 5" width="8" height="5"><path d="M0 0l4 5 4-5z" fill="currentColor"/></svg>
+          </div>
+          <div class="bbu-native-field" id="bbuEndTimeField" title="Set end time" style="display:none">
+            <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <span class="bbu-field-text muted" id="bbuEndTimeText">End</span>
+            <span class="bbu-field-clear" id="bbuEndTimeClearBtn" title="Clear end time">✕</span>
+            <input type="time" id="bbuEndTimeInput" class="bbu-native-input" tabindex="-1" aria-hidden="true">
             <svg viewBox="0 0 8 5" width="8" height="5"><path d="M0 0l4 5 4-5z" fill="currentColor"/></svg>
           </div>
         </div>
@@ -480,6 +493,46 @@
         <div class="bbu-modal-actions">
           <button class="btn btn-cancel" id="bbuModalCancelBtn">CANCEL</button>
           <button class="btn btn-save" id="bbuModalSaveBtn">SAVE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== BBU COLOUR MODAL (month view) ===== -->
+  <div class="modal-overlay" id="bbuColorOverlay">
+    <div class="modal" id="bbuColorModal">
+      <div class="modal-header">
+        <span class="modal-title">TASK COLOUR</span>
+        <button class="modal-close" id="bbuColorClose">✕</button>
+      </div>
+      <div class="modal-body bbu-color-body">
+        <div class="bbu-color-preview">
+          <span class="bbu-color-preview-label">PREVIEW</span>
+          <div class="bbu-color-preview-swatch" id="bbuColorPreview"></div>
+        </div>
+        <div class="bbu-color-pickers">
+          <div class="bbu-color-wheel" id="bbuColorWheel" title="Pick a hue">
+            <div class="bbu-color-wheel-marker" id="bbuColorWheelMarker"></div>
+          </div>
+          <div class="bbu-color-sv" id="bbuColorSv" title="Pick saturation / brightness">
+            <div class="bbu-color-sv-marker" id="bbuColorSvMarker"></div>
+          </div>
+        </div>
+        <div class="bbu-color-row">
+          <label class="bbu-color-hex-label">HEX</label>
+          <input type="text" id="bbuColorHex" class="bbu-color-hex" maxlength="7" spellcheck="false" autocomplete="off">
+          <input type="color" id="bbuColorNative" class="bbu-color-native" title="Native picker" aria-label="Native picker">
+        </div>
+        <div class="bbu-color-presets">
+          <span class="bbu-color-presets-label">PRESETS</span>
+          <div class="bbu-color-preset-row" id="bbuColorPresets"></div>
+        </div>
+        <button type="button" class="bbu-color-reset" id="bbuColorReset">↺ Use quadrant colour</button>
+      </div>
+      <div class="modal-footer">
+        <div class="modal-footer-right">
+          <button class="btn btn-cancel" id="bbuColorCancel">CANCEL</button>
+          <button class="btn btn-save" id="bbuColorSave">DONE</button>
         </div>
       </div>
     </div>
