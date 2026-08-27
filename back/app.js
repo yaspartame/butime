@@ -31,6 +31,7 @@ let state = {
   bbuColorTaskId: null,
   bbuColor: null,
   bbuColorCatId: null,
+  bbuColorCatEditing: null,
   bbuWeekDrag: null,
 };
 
@@ -486,6 +487,16 @@ function bbuDueLabel(t) {
   if (diff === -1) return 'Yesterday';
   const sameYear = d.getFullYear() === today.getFullYear();
   const s = DAY_SHORT[(d.getDay() + 6) % 7] + ' ' + MONTH_SHORT[d.getMonth()] + ' ' + d.getDate();
+  return sameYear ? s : s + ' ' + d.getFullYear();
+}
+// Event list chip date: "Thu 27 Aug" (day, day-of-month, month) — always shows
+// the real date rather than relative "Today"/"Tomorrow" labels.
+function bbuEventDateLabel(t) {
+  if (!t.dueDate) return '';
+  const d = new Date(t.dueDate + 'T00:00:00');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const sameYear = d.getFullYear() === today.getFullYear();
+  const s = `${DAY_SHORT[(d.getDay() + 6) % 7]} ${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
   return sameYear ? s : s + ' ' + d.getFullYear();
 }
 function bbuIsOverdue(t) { if (!t.dueDate) return false; const d = new Date(t.dueDate + 'T00:00:00'); const n = new Date(); n.setHours(0, 0, 0, 0); return d < n; }
@@ -998,6 +1009,7 @@ function createBbuTaskEl(task, opts) {
   const compact = opts && opts.compact;
   const noDue = opts && opts.noDue;
   const timeChip = opts && opts.timeChip;
+  const eventChip = opts && opts.eventChip;
   const q = bbuQuadrantOf(task);
   row.style.setProperty('--tc', bbuColorOf(task));
   const desc = (!compact && task.description) ? `<span class="bbu-task-desc">${esc(task.description)}</span>` : '';
@@ -1005,6 +1017,13 @@ function createBbuTaskEl(task, opts) {
   if (task.priority) meta.push(`<span class="bbu-flag" style="color:${bbuPriorityMeta(task.priority).color}">${svgFlag()}</span>`);
   if (task.pinned) meta.push('<span class="bbu-pin">📌</span>');
   if (timeChip && task.time) meta.push(`<span class="bbu-due-chip">${bbuTimeLabel(task)}</span>`);
+  // Events in the list show the full date + start–end time: "Thu 27 Aug · 2:00 PM – 3:00 PM"
+  if (eventChip) {
+    const parts = [];
+    if (task.dueDate) parts.push(bbuEventDateLabel(task));
+    if (task.time) parts.push(bbuTimeLabel(task));
+    if (parts.length) meta.push(`<span class="bbu-due-chip">${parts.join(' · ')}</span>`);
+  }
   if (task.dueDate && !compact && !noDue) {
     meta.push(`<span class="bbu-due-chip ${bbuIsOverdue(task) ? 'overdue' : ''}">${bbuDueLabel(task)}${task.time ? ' · ' + bbuTimeLabel(task) : ''}</span>`);
   }
@@ -1064,7 +1083,7 @@ function renderBbuList() {
     eTitle.className = 'bbu-list-title bbu-list-title-event';
     eTitle.textContent = `EVENTS (${events.length})`;
     wrap.appendChild(eTitle);
-    events.forEach(t => wrap.appendChild(createBbuTaskEl(t, { noDue: true, timeChip: true })));
+    events.forEach(t => wrap.appendChild(createBbuTaskEl(t, { noDue: true, eventChip: true })));
   }
 
   // --- Completed / won't-do (tasks only, dimmed) ---
@@ -1306,9 +1325,12 @@ function renderBbuColor() {
 }
 // A manual colour pick (wheel/SV/hex/preset/reset) clears the active category —
 // picking a category afterwards overrides whatever colour was picked.
+// (When editing a category, keep it selected so the wheel tweaks its colour.)
 function bbuColorManualChange() {
-  state.bbuColorCatId = null;
-  renderBbuColorCat();
+  if (!state.bbuColorCatEditing) {
+    state.bbuColorCatId = null;
+    renderBbuColorCat();
+  }
   renderBbuColor();
 }
 function bbuApplyColorInput(hex) {
@@ -1344,16 +1366,74 @@ function bbuColorCatAdd(name) {
   if (!n) { shakeBtn(document.getElementById('bbuColorCatAdd')); return; }
   let cats = getBbuCategories();
   const existing = cats.find(c => c.name.toLowerCase() === n.toLowerCase());
-  if (existing) { bbuColorCatSelect(existing.id); return; }
+  if (existing) { bbuColorCatSelect(existing.id); bbuShowColorCatList(); return; }
   cats.push({ id: genId(), name: n, color: bbuColorHex() });
   saveBbuCategories(cats);
   bbuColorCatSelect(cats[cats.length - 1].id);
+  // Feedback: open the dropdown so the freshly-added category is visible.
+  bbuShowColorCatList();
+}
+function bbuShowColorCatList() {
+  const list = document.getElementById('bbuColorCatList');
+  list.style.display = 'block';
+  renderBbuColorCat();
+}
+// ---- Category editing (name + colour) ----
+function bbuColorCatEdit(id) {
+  const c = getBbuCategories().find(x => x.id === id);
+  if (!c) return;
+  state.bbuColorCatEditing = id;
+  bbuColorCatSelect(id); // load its colour into the wheel + name into the field
+  renderBbuColorCat();
+}
+function bbuColorCatCancelEdit() {
+  state.bbuColorCatEditing = null;
+  const cur = bbuColorCatCurrent();
+  if (cur && state.bbuColor) {
+    const { h, s, v } = hexToHsv(cur.color);
+    state.bbuColor.h = h; state.bbuColor.s = s; state.bbuColor.v = v;
+  }
+  renderBbuColor();
+  renderBbuColorCat();
+}
+function bbuColorCatSaveEdit() {
+  const id = state.bbuColorCatEditing;
+  if (!id) return;
+  const n = (document.getElementById('bbuColorCatInput').value || '').trim();
+  if (!n) { shakeBtn(document.getElementById('bbuColorCatAdd')); return; }
+  let cats = getBbuCategories();
+  const c = cats.find(x => x.id === id);
+  if (!c) return;
+  c.name = n;
+  c.color = bbuColorHex();
+  saveBbuCategories(cats);
+  // Propagate the new colour to every task/event that uses this category.
+  const tasks = getBbuTasks();
+  let changed = false;
+  tasks.forEach(t => { if (t.colorCategory === id && t.color !== c.color) { t.color = c.color; changed = true; } });
+  if (changed) saveBbuTasks(tasks);
+  state.bbuColorCatEditing = null;
+  bbuColorCatSelect(id); // reselect with the new name/colour
+  bbuShowColorCatList(); // feedback: open the dropdown to show the edit landed
+  renderBbu();
 }
 function renderBbuColorCat() {
   const cur = bbuColorCatCurrent();
+  const editing = state.bbuColorCatEditing;
   const input = document.getElementById('bbuColorCatInput');
   input.value = cur ? cur.name : '';
   input.placeholder = cur ? '' : 'Add a category';
+  const addBtn = document.getElementById('bbuColorCatAdd');
+  const cancelBtn = document.getElementById('bbuColorCatCancel');
+  if (editing) {
+    addBtn.textContent = '✓';
+    addBtn.title = 'Save edit';
+    cancelBtn.style.display = '';
+  } else {
+    addBtn.textContent = '+';
+    addBtn.title = 'Add category';
+    cancelBtn.style.display = 'none';
+  }
   const list = document.getElementById('bbuColorCatList');
   const cats = getBbuCategories();
   list.innerHTML = '';
@@ -1366,10 +1446,11 @@ function renderBbuColorCat() {
   }
   cats.forEach(c => {
     const item = document.createElement('div');
-    item.className = 'bbu-color-cat-item' + (c.id === state.bbuColorCatId ? ' active' : '');
+    item.className = 'bbu-color-cat-item' + (c.id === state.bbuColorCatId ? ' active' : '') + (c.id === editing ? ' editing' : '');
     item.dataset.id = c.id;
-    item.innerHTML = `<span class="bbu-color-cat-swatch" style="background:${c.color}"></span><span class="bbu-color-cat-name">${esc(c.name)}</span><button type="button" class="bbu-color-cat-del" title="Delete category">✕</button>`;
-    item.addEventListener('click', (e) => { if (e.target.closest('.bbu-color-cat-del')) return; bbuColorCatSelect(c.id); });
+    item.innerHTML = `<span class="bbu-color-cat-swatch" style="background:${c.color}"></span><span class="bbu-color-cat-name">${esc(c.name)}</span><button type="button" class="bbu-color-cat-edit" title="Edit category">✎</button><button type="button" class="bbu-color-cat-del" title="Delete category">✕</button>`;
+    item.addEventListener('click', (e) => { if (e.target.closest('.bbu-color-cat-edit, .bbu-color-cat-del')) return; bbuColorCatSelect(c.id); });
+    item.querySelector('.bbu-color-cat-edit').addEventListener('click', (e) => { e.stopPropagation(); bbuColorCatEdit(c.id); });
     item.querySelector('.bbu-color-cat-del').addEventListener('click', (e) => { e.stopPropagation(); bbuColorCatDelete(c.id); });
     list.appendChild(item);
   });
@@ -1384,6 +1465,7 @@ function bbuColorCatDelete(id) {
     tasks.forEach(t => { if (t.colorCategory === id) { t.colorCategory = null; changed = true; } });
     if (changed) saveBbuTasks(tasks);
   }
+  if (state.bbuColorCatEditing === id) state.bbuColorCatEditing = null;
   renderBbuColorCat();
 }
 function initBbuColorModal() {
@@ -1434,9 +1516,17 @@ function initBbuColorModal() {
   document.getElementById('bbuColorClose').addEventListener('click', closeBbuColorModal);
   const catInput = document.getElementById('bbuColorCatInput');
   catInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); bbuColorCatAdd(catInput.value); }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (state.bbuColorCatEditing) bbuColorCatSaveEdit();
+      else bbuColorCatAdd(catInput.value);
+    }
   });
-  document.getElementById('bbuColorCatAdd').addEventListener('click', () => bbuColorCatAdd(catInput.value));
+  document.getElementById('bbuColorCatAdd').addEventListener('click', () => {
+    if (state.bbuColorCatEditing) bbuColorCatSaveEdit();
+    else bbuColorCatAdd(catInput.value);
+  });
+  document.getElementById('bbuColorCatCancel').addEventListener('click', bbuColorCatCancelEdit);
   document.getElementById('bbuColorCatToggle').addEventListener('click', (e) => {
     e.stopPropagation();
     const list = document.getElementById('bbuColorCatList');
@@ -2009,7 +2099,6 @@ migrateBbuData();
 initBbuPanels();
 initPomodoro();
 renderPomodoro();
-// Auto-collapse sidebar on mobile
 if (window.innerWidth < 768) document.getElementById('sidebar').classList.add('collapsed');
 renderSidebar();
 applyModeUI();

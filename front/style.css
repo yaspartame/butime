@@ -2332,10 +2332,10 @@ input[type="time"].form-input {
 
 .bbu-due-chip {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 11px;
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
-  padding: 1px 7px;
+  padding: 2px 8px;
   border-radius: 8px;
   white-space: nowrap;
 }
@@ -3247,10 +3247,13 @@ input[type="time"].form-input {
   text-overflow: ellipsis;
 }
 
-/* Scrollable timed grid body */
+/* Scrollable timed grid body — this creates a stacking context so event blocks
+   and the current-time line can NEVER paint above the sticky header/all-day row
+   when they scroll underneath them (prevents "phasing through" glitch). */
 .bbu-cal-week-body {
   display: flex;
   position: relative;
+  z-index: 1;
   min-width: 0;
   width: 100%;
 }
@@ -3605,6 +3608,11 @@ body.bbu-dragging * {
   color: var(--text-primary);
 }
 
+.bbu-color-cat-cancel:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 .bbu-color-cat-list {
   display: flex;
   flex-direction: column;
@@ -3634,6 +3642,10 @@ body.bbu-dragging * {
 .bbu-color-cat-item.active {
   background: var(--bg-card);
   box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.bbu-color-cat-item.editing {
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 .bbu-color-cat-swatch {
@@ -3669,7 +3681,6 @@ body.bbu-dragging * {
   font-size: 10px;
   line-height: 1;
   cursor: pointer;
-  margin-left: auto;
   flex-shrink: 0;
   transition: all 0.15s;
 }
@@ -3677,6 +3688,29 @@ body.bbu-dragging * {
 .bbu-color-cat-del:hover {
   color: var(--danger);
   background: rgba(224, 83, 90, 0.15);
+}
+
+.bbu-color-cat-edit {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  margin-left: auto;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.bbu-color-cat-edit:hover {
+  color: var(--accent);
+  background: rgba(107, 125, 179, 0.15);
 }
 
 .bbu-color-cat-empty {
