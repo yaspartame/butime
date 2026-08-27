@@ -1,7 +1,7 @@
 {
   "name": "butime",
   "productName": "butime",
-  "version": "1.3.1",
+  "version": "1.3.3",
   "description": "Offline time-management app",
   "main": "main.js",
   "author": "Miyakazine",
