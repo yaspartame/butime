@@ -22,6 +22,10 @@ function createWindow() {
   // Load your EXISTING app, completely unchanged
   win.loadFile(path.join(__dirname, 'front', 'index.html'));
 
+  win.on('focus', () => {
+    win.webContents.focus();
+  });
+
   // Foolproofing: real links open in the browser, everything else is blocked
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http')) shell.openExternal(url);

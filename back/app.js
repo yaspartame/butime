@@ -76,7 +76,7 @@ function buildViewDropdown() {
   const dd = viewDropdown;
   dd.innerHTML = '';
   const opts = [];
-  if (state.mode === 'bbu') opts.push(['matrix', 'MATRIX'], ['calendar', 'CALENDAR'], ['list', 'TASK LIST']);
+  if (state.mode === 'bbu') opts.push(['matrix', 'MATRIX'], ['calendar', 'CALENDAR'], ['list', 'LIST']);
   else opts.push(['timetable', 'TIMETABLE'], ['todo', 'TO DO LIST']);
   if ((getPomoSettings().location || 'view') !== 'sidebar') opts.push(['pomodoro', 'POMODORO']);
   opts.forEach(([v, label]) => {
@@ -89,7 +89,7 @@ function buildViewDropdown() {
   viewCurrent.textContent = state.currentView === 'settings' ? 'SETTINGS'
     : state.currentView === 'pomodoro' ? 'POMODORO'
     : state.mode === 'bbu'
-      ? (state.bbuView === 'list' ? 'TASK LIST' : state.bbuView === 'calendar' ? 'CALENDAR' : 'MATRIX')
+      ? (state.bbuView === 'list' ? 'LIST' : state.bbuView === 'calendar' ? 'CALENDAR' : 'MATRIX')
       : (state.currentView === 'todo' ? 'TO DO LIST' : 'TIMETABLE');
 }
 viewDropdown.addEventListener('click', (e) => { const opt = e.target.closest('.view-option'); if (!opt) return; switchView(opt.dataset.view); });
@@ -372,6 +372,18 @@ function openModalById(id) { document.getElementById(id).classList.add('active')
 function closeModalById(id) { document.getElementById(id).classList.remove('active'); }
 ['modalOverlay','catModalOverlay','linkModalOverlay','todoModalOverlay','instanceModalOverlay','bbuModalOverlay','bbuColorOverlay','modeModalOverlay','pomoSettingsOverlay'].forEach(id => { document.getElementById(id).addEventListener('click', (e) => { if (e.target === document.getElementById(id)) closeModalById(id); }); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeBbuMenu(); closePomoSettings(); ['modalOverlay','catModalOverlay','linkModalOverlay','todoModalOverlay','instanceModalOverlay','bbuModalOverlay','bbuColorOverlay','modeModalOverlay','pomoSettingsOverlay'].forEach(id => { if (document.getElementById(id).classList.contains('active')) closeModalById(id); }); } });
+
+// Electron: after alt-tabbing back into the app, Chromium sometimes keeps the
+// focused field from receiving keystrokes (the "have to tab out again" bug).
+// Blur + refocus the active element when the window regains focus, which is
+// exactly what tabbing out and back would do — but automatically.
+window.addEventListener('focus', () => {
+  const el = document.activeElement;
+  if (el && el !== document.body && el !== document.documentElement && typeof el.blur === 'function' && typeof el.focus === 'function') {
+    el.blur();
+    requestAnimationFrame(() => { try { el.focus(); } catch (_) { /* element may be gone */ } });
+  }
+});
 
 function rerenderCurrentView() { applyModeUI(); }
 document.getElementById('prevWeek').addEventListener('click', () => { state.weekOffset--; rerenderCurrentView(); });
@@ -773,6 +785,8 @@ function bbuInitWeekDayDrag(col, iso, startHour, HOUR_H) {
   col.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
     if (e.target.closest('.bbu-cal-event, .bbu-task, .bbu-check, .bbu-cal-drag-event')) return;
+    // Never interfere with form controls (keeps text inputs focusable).
+    if (e.target.closest('input, textarea, select, button, .bbu-native-field')) return;
     const rect = col.getBoundingClientRect();
     const y = e.clientY - rect.top;
     if (y < 0 || y > col.offsetHeight) return;
@@ -787,6 +801,7 @@ function bbuInitWeekDayDrag(col, iso, startHour, HOUR_H) {
 document.addEventListener('mousemove', (e) => {
   const d = state.bbuWeekDrag;
   if (!d || !d.col) return;
+  if (!d.col.isConnected) { state.bbuWeekDrag = null; document.body.classList.remove('bbu-dragging'); return; }
   const rect = d.col.getBoundingClientRect();
   const y = e.clientY - rect.top;
   const gridMax = d.startHour * 60 + (d.col.offsetHeight / d.HOUR_H) * 60;
@@ -906,7 +921,7 @@ function renderBbuMatrix() {
   const topLevel = tasks.filter(t => !t.parentId);
   wrap.innerHTML = '';
   BBU_QUADRANTS.forEach(q => {
-    const qTasks = topLevel.filter(t => !t.completed && !t.wontDo && !!t.urgent === q.urgent && !!t.important === q.important).sort(bbuSortTasks);
+    const qTasks = topLevel.filter(t => t.type !== 'event' && !t.completed && !t.wontDo && !!t.urgent === q.urgent && !!t.important === q.important).sort(bbuSortTasks);
     const quad = document.createElement('div');
     quad.className = 'bbu-quadrant';
     quad.style.setProperty('--q', q.color);
@@ -927,7 +942,7 @@ function renderBbuMatrix() {
       bbuRenderTree(body, tasks, qTasks, {});
     }
     quad.appendChild(body);
-    const completed = topLevel.filter(t => t.completed && !!t.urgent === q.urgent && !!t.important === q.important);
+    const completed = topLevel.filter(t => t.type !== 'event' && t.completed && !!t.urgent === q.urgent && !!t.important === q.important);
     if (completed.length > 0) {
       const ft = document.createElement('button');
       ft.className = 'bbu-q-completed';
@@ -982,12 +997,14 @@ function createBbuTaskEl(task, opts) {
   if (task.type === 'event') row.classList.add('bbu-event');
   const compact = opts && opts.compact;
   const noDue = opts && opts.noDue;
+  const timeChip = opts && opts.timeChip;
   const q = bbuQuadrantOf(task);
   row.style.setProperty('--tc', bbuColorOf(task));
   const desc = (!compact && task.description) ? `<span class="bbu-task-desc">${esc(task.description)}</span>` : '';
   const meta = [];
   if (task.priority) meta.push(`<span class="bbu-flag" style="color:${bbuPriorityMeta(task.priority).color}">${svgFlag()}</span>`);
   if (task.pinned) meta.push('<span class="bbu-pin">📌</span>');
+  if (timeChip && task.time) meta.push(`<span class="bbu-due-chip">${bbuTimeLabel(task)}</span>`);
   if (task.dueDate && !compact && !noDue) {
     meta.push(`<span class="bbu-due-chip ${bbuIsOverdue(task) ? 'overdue' : ''}">${bbuDueLabel(task)}${task.time ? ' · ' + bbuTimeLabel(task) : ''}</span>`);
   }
@@ -1021,51 +1038,54 @@ function bbuAppendTree(container, tasks, task, opts, depth) {
 
 function renderBbuList() {
   const wrap = document.getElementById('bbuList');
-  const tasks = getBbuTasks();
-  const topLevel = tasks.filter(t => !t.parentId);
+  const all = getBbuTasks();
+  const topLevel = all.filter(t => !t.parentId);
   wrap.innerHTML = '';
-  const title = document.createElement('div');
-  title.className = 'bbu-list-title';
-  title.textContent = 'ALL TASKS';
-  wrap.appendChild(title);
-  let shown = 0;
-  BBU_QUADRANTS.forEach(q => {
-    const qTasks = topLevel.filter(t => !t.completed && !t.wontDo && !!t.urgent === q.urgent && !!t.important === q.important).sort(bbuSortTasks);
-    if (!qTasks.length) return;
-    const g = document.createElement('div');
-    g.className = 'bbu-list-group';
-    g.style.setProperty('--q', q.color);
-    const gh = document.createElement('div');
-    gh.className = 'bbu-list-group-header';
-    gh.innerHTML = `<span class="bbu-q-dot" style="background:${q.color}"></span><span class="bbu-q-title">${q.title}</span><span class="bbu-q-hint">${q.hint}</span><span class="bbu-q-count">${qTasks.length}</span>`;
-    g.appendChild(gh);
-    bbuRenderTree(g, tasks, qTasks, {});
-    wrap.appendChild(g);
-    shown += qTasks.length;
-  });
-  const completed = topLevel.filter(t => t.completed);
+
+  // --- Tasks: a flat list sorted like the matrix (by quadrant), colour coded ---
+  const qOrder = { q1: 0, q2: 1, q3: 2, q4: 3 };
+  const tasks = topLevel.filter(t => t.type !== 'event' && !t.completed && !t.wontDo)
+    .sort((a, b) => (qOrder[bbuQuadrantOf(a).id] - qOrder[bbuQuadrantOf(b).id]) || bbuSortTasks(a, b));
+  const tTitle = document.createElement('div');
+  tTitle.className = 'bbu-list-title';
+  tTitle.textContent = tasks.length ? `ALL TASKS (${tasks.length})` : 'ALL TASKS';
+  wrap.appendChild(tTitle);
+  if (tasks.length) bbuRenderTree(wrap, all, tasks, {});
+
+  // --- Events: own section, colour coded, sorted by colour, with start–end time ---
+  const events = topLevel.filter(t => t.type === 'event' && !t.completed && !t.wontDo)
+    .sort((a, b) => {
+      const ca = bbuColorOf(a), cb = bbuColorOf(b);
+      if (ca !== cb) return ca < cb ? -1 : 1;
+      return bbuTimeToMin(a.time) - bbuTimeToMin(b.time);
+    });
+  if (events.length) {
+    const eTitle = document.createElement('div');
+    eTitle.className = 'bbu-list-title bbu-list-title-event';
+    eTitle.textContent = `EVENTS (${events.length})`;
+    wrap.appendChild(eTitle);
+    events.forEach(t => wrap.appendChild(createBbuTaskEl(t, { noDue: true, timeChip: true })));
+  }
+
+  // --- Completed / won't-do (tasks only, dimmed) ---
+  const completed = topLevel.filter(t => t.type !== 'event' && t.completed).slice().sort(bbuSortTasks);
   if (completed.length) {
-    const g = document.createElement('div');
-    g.className = 'bbu-list-group bbu-list-dim';
-    const gh = document.createElement('div');
-    gh.className = 'bbu-list-group-header';
-    gh.innerHTML = `<span class="bbu-q-title">COMPLETED</span><span class="bbu-q-count">${completed.length}</span>`;
-    g.appendChild(gh);
-    bbuRenderTree(g, tasks, completed.slice().sort(bbuSortTasks), {});
-    wrap.appendChild(g);
+    const cTitle = document.createElement('div');
+    cTitle.className = 'bbu-list-title bbu-list-dim-title';
+    cTitle.textContent = `COMPLETED (${completed.length})`;
+    wrap.appendChild(cTitle);
+    bbuRenderTree(wrap, all, completed, {});
   }
-  const wontdo = topLevel.filter(t => t.wontDo);
+  const wontdo = topLevel.filter(t => t.type !== 'event' && t.wontDo).slice().sort(bbuSortTasks);
   if (wontdo.length) {
-    const g = document.createElement('div');
-    g.className = 'bbu-list-group bbu-list-dim';
-    const gh = document.createElement('div');
-    gh.className = 'bbu-list-group-header';
-    gh.innerHTML = `<span class="bbu-q-title">WON'T DO</span><span class="bbu-q-count">${wontdo.length}</span>`;
-    g.appendChild(gh);
-    bbuRenderTree(g, tasks, wontdo.slice().sort(bbuSortTasks), {});
-    wrap.appendChild(g);
+    const wTitle = document.createElement('div');
+    wTitle.className = 'bbu-list-title bbu-list-dim-title';
+    wTitle.textContent = `WON'T DO (${wontdo.length})`;
+    wrap.appendChild(wTitle);
+    bbuRenderTree(wrap, all, wontdo, {});
   }
-  if (shown === 0 && completed.length === 0 && wontdo.length === 0) {
+
+  if (!tasks.length && !events.length && !completed.length && !wontdo.length) {
     const e = document.createElement('div');
     e.className = 'bbu-list-empty';
     e.textContent = 'No tasks yet — tap + to add one.';
@@ -1348,10 +1368,23 @@ function renderBbuColorCat() {
     const item = document.createElement('div');
     item.className = 'bbu-color-cat-item' + (c.id === state.bbuColorCatId ? ' active' : '');
     item.dataset.id = c.id;
-    item.innerHTML = `<span class="bbu-color-cat-swatch" style="background:${c.color}"></span><span class="bbu-color-cat-name">${esc(c.name)}</span>`;
-    item.addEventListener('click', () => bbuColorCatSelect(c.id));
+    item.innerHTML = `<span class="bbu-color-cat-swatch" style="background:${c.color}"></span><span class="bbu-color-cat-name">${esc(c.name)}</span><button type="button" class="bbu-color-cat-del" title="Delete category">✕</button>`;
+    item.addEventListener('click', (e) => { if (e.target.closest('.bbu-color-cat-del')) return; bbuColorCatSelect(c.id); });
+    item.querySelector('.bbu-color-cat-del').addEventListener('click', (e) => { e.stopPropagation(); bbuColorCatDelete(c.id); });
     list.appendChild(item);
   });
+}
+function bbuColorCatDelete(id) {
+  saveBbuCategories(getBbuCategories().filter(c => c.id !== id));
+  if (state.bbuColorCatId === id) {
+    state.bbuColorCatId = null;
+    // Drop the reference on any task that used this category.
+    const tasks = getBbuTasks();
+    let changed = false;
+    tasks.forEach(t => { if (t.colorCategory === id) { t.colorCategory = null; changed = true; } });
+    if (changed) saveBbuTasks(tasks);
+  }
+  renderBbuColorCat();
 }
 function initBbuColorModal() {
   const wheel = document.getElementById('bbuColorWheel');
