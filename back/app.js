@@ -909,7 +909,7 @@ function renderBbuCalMonth() {
 
 function renderBbuCalOverdue(tasks) {
   const todayISO = formatDateISO(new Date());
-  const overdue = tasks.filter(t => !t.completed && !t.wontDo && t.dueDate && t.dueDate < todayISO).sort(bbuSortTasks);
+  const overdue = tasks.filter(t => t.type !== 'event' && !t.completed && !t.wontDo && t.dueDate && t.dueDate < todayISO).sort(bbuSortTasks);
   const strip = document.getElementById('bbuCalOverdue');
   strip.innerHTML = '';
   if (!overdue.length) return;
