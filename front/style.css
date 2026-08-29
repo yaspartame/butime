@@ -128,7 +128,17 @@ html, body {
 
 .mode-option.active {
   border-color: var(--accent);
-  background: #1f2538;
+  background: #232b47;
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.mode-option.active::after {
+  content: '✓';
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
 }
 
 .mode-option-name {
@@ -146,6 +156,10 @@ html, body {
 .mode-option-desc {
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.mode-option.active .mode-option-desc {
+  color: var(--text-primary);
 }
 
 .header-right {
@@ -438,6 +452,12 @@ html, body {
 .pomo-btn:hover {
   border-color: var(--accent);
   color: var(--text-primary);
+}
+
+.pomo-btn.pomo-overlay.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg-primary);
 }
 
 .pomo-reset {

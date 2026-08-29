@@ -50,6 +50,7 @@
           <div class="pomo-controls">
             <button class="pomo-btn pomo-start">▶ START</button>
             <button class="pomo-btn pomo-reset" title="Reset">⟲</button>
+            <button class="pomo-btn pomo-overlay" title="Floating timer overlay">⧉</button>
           </div>
           <div class="pomo-task-actions" style="display:none">
             <button class="pomo-finish">✓ Finish task</button>
@@ -83,6 +84,21 @@
             <div class="mode-option" data-mode="bbu">
               <span class="mode-option-name">BBU</span>
               <span class="mode-option-desc">Eisenhower matrix · calendar · instances</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3 class="settings-section-title">CLOSING APP</h3>
+          <p class="settings-desc">What should happen when you close the butime window?</p>
+          <div class="mode-selector" id="closeActionSelector">
+            <div class="mode-option" data-closeaction="minimize">
+              <span class="mode-option-name">MINIMIZE</span>
+              <span class="mode-option-desc">Hide to the system tray — butime keeps running in the background.</span>
+            </div>
+            <div class="mode-option" data-closeaction="quit">
+              <span class="mode-option-name">CLOSE</span>
+              <span class="mode-option-desc">Quit the app completely.</span>
             </div>
           </div>
         </div>
@@ -188,6 +204,7 @@
         <div class="pomo-controls">
           <button class="pomo-btn pomo-start">▶ START</button>
           <button class="pomo-btn pomo-reset" title="Reset">⟲</button>
+          <button class="pomo-btn pomo-overlay" title="Floating timer overlay">⧉</button>
           <button class="pomo-btn pomo-settings" title="Pomodoro settings">⚙</button>
         </div>
         <div class="pomo-task-actions" style="display:none">

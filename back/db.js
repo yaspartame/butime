@@ -57,10 +57,10 @@ function migrateOldData() {
 
 /* ---- Settings ---- */
 function getSettings() {
-  try { return JSON.parse(localStorage.getItem('butime_settings')) || getDefaultSettings(); }
+  try { return Object.assign({}, getDefaultSettings(), JSON.parse(localStorage.getItem('butime_settings')) || {}); }
   catch { return getDefaultSettings(); }
 }
-function getDefaultSettings() { return { defaultNearImmediate: 24, defaultNearScheduled: 48, perTodoUrgency: false }; }
+function getDefaultSettings() { return { defaultNearImmediate: 24, defaultNearScheduled: 48, perTodoUrgency: false, closeAction: 'minimize' }; }
 function saveSettings(s) { localStorage.setItem('butime_settings', JSON.stringify(s)); }
 
 // BBU Data layer
@@ -124,7 +124,7 @@ function setBbuCalMode(mode) {
 }
 
 function getPomoSettings() {
-  const d = { workMin: 25, shortBreakMin: 5, longBreakMin: 15, longBreakEvery: 4, sound: true, location: 'view' };
+  const d = { workMin: 25, shortBreakMin: 5, longBreakMin: 15, longBreakEvery: 4, sound: true, location: 'view', floatingOverlay: false };
   try { return Object.assign({}, d, JSON.parse(localStorage.getItem('butime_pomodoro')) || {}); }
   catch { return d; }
 }

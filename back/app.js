@@ -146,7 +146,7 @@ function applyModeUI() {
   document.getElementById('viewTodo').style.display = show('todo');
   document.getElementById('viewSettings').style.display = show('settings');
   document.getElementById('settingsLegacySections').style.display = (bbu || !inSettings) ? 'none' : '';
-  document.querySelectorAll('.mode-option').forEach(o => o.classList.toggle('active', o.dataset.mode === state.mode));
+  document.querySelectorAll('#modeSelector .mode-option').forEach(o => o.classList.toggle('active', o.dataset.mode === state.mode));
   updateAlertBadge();
   if (inSettings) return;
   if (cv === 'pomodoro') { renderPomodoro(); return; }
@@ -182,6 +182,8 @@ function openSettings() {
   document.getElementById('setNearImmediate').value = s.defaultNearImmediate;
   document.getElementById('setNearScheduled').value = s.defaultNearScheduled;
   document.getElementById('setPerTodoUrgency').checked = s.perTodoUrgency;
+  const ca = (s.closeAction === 'quit') ? 'quit' : 'minimize';
+  document.querySelectorAll('#closeActionSelector .mode-option').forEach(o => o.classList.toggle('active', o.dataset.closeaction === ca));
   switchView('settings');
 }
 document.getElementById('sidebarSettingsBtn').addEventListener('click', openSettings);
@@ -208,13 +210,21 @@ function settingsReturnView() {
 }
 document.getElementById('settingsBackBtn').addEventListener('click', () => { switchView(settingsReturnView()); });
 document.getElementById('settingsSaveBtn').addEventListener('click', () => {
+  const activeClose = document.querySelector('#closeActionSelector .mode-option.active');
+  const closeAction = activeClose ? activeClose.dataset.closeaction : 'minimize';
   saveSettings({
     defaultNearImmediate: parseInt(document.getElementById('setNearImmediate').value,10) || 24,
     defaultNearScheduled: parseInt(document.getElementById('setNearScheduled').value,10) || 48,
     perTodoUrgency: document.getElementById('setPerTodoUrgency').checked,
+    closeAction,
   });
+  if (window.butime && window.butime.setCloseAction) window.butime.setCloseAction(closeAction);
   switchView(settingsReturnView());
 });
+document.querySelectorAll('#closeActionSelector .mode-option').forEach(o => o.addEventListener('click', () => {
+  document.querySelectorAll('#closeActionSelector .mode-option').forEach(x => x.classList.remove('active'));
+  o.classList.add('active');
+}));
 
 document.getElementById('settingsExportBtn').addEventListener('click', () => {
   const json = exportAllData();
@@ -2088,6 +2098,18 @@ function renderPomodoro() {
     else titleEl.style.display = 'none';
   });
   document.querySelectorAll('.pomo-task-actions').forEach(el => el.style.display = pomoState.taskId ? '' : 'none');
+  // Mirror the timer to the floating desktop overlay (Electron only).
+  if (window.butime && window.butime.sendPomoState) {
+    window.butime.sendPomoState({
+      timeStr,
+      modeStr,
+      isBreak: pomoState.mode !== 'focus',
+      done: pomoState.done,
+      sessionDone: pomoState.sessionCount % s.longBreakEvery,
+      longBreakEvery: s.longBreakEvery,
+      title: pomoState.title || '',
+    });
+  }
 }
 
 function pomoSettingsHTML() {
@@ -2158,12 +2180,22 @@ function applyPomoLocation() {
   buildViewDropdown();
   applyModeUI();
 }
+function pomoToggleOverlay() {
+  const s = getPomoSettings();
+  s.floatingOverlay = !s.floatingOverlay;
+  savePomoSettings(s);
+  if (window.butime && window.butime.toggleOverlay) window.butime.toggleOverlay(s.floatingOverlay);
+  document.querySelectorAll('.pomo-overlay').forEach(b => b.classList.toggle('active', s.floatingOverlay));
+}
 function initPomodoro() {
   document.querySelectorAll('.pomo-start').forEach(b => b.addEventListener('click', pomoStart));
   document.querySelectorAll('.pomo-reset').forEach(b => b.addEventListener('click', pomoReset));
   document.querySelectorAll('.pomo-finish').forEach(b => b.addEventListener('click', pomoFinishTask));
   document.querySelectorAll('.pomo-unlink').forEach(b => b.addEventListener('click', pomoUnlink));
   document.querySelectorAll('.pomo-settings').forEach(b => b.addEventListener('click', openPomoSettings));
+  document.querySelectorAll('.pomo-overlay').forEach(b => b.addEventListener('click', pomoToggleOverlay));
+  document.querySelectorAll('.pomo-overlay').forEach(b => b.classList.toggle('active', !!getPomoSettings().floatingOverlay));
+  if (window.butime && window.butime.toggleOverlay) window.butime.toggleOverlay(!!getPomoSettings().floatingOverlay);
   document.getElementById('pomoSettingsClose').addEventListener('click', closePomoSettings);
   setInterval(() => {
     if (pomoState.running && pomoState.endTime) {
@@ -2185,3 +2217,9 @@ renderPomodoro();
 if (window.innerWidth < 768) document.getElementById('sidebar').classList.add('collapsed');
 renderSidebar();
 applyModeUI();
+
+// Tell the Electron main process what the close (X) button should do.
+if (window.butime && window.butime.setCloseAction) {
+  const s = getSettings();
+  window.butime.setCloseAction(s.closeAction === 'quit' ? 'quit' : 'minimize');
+}

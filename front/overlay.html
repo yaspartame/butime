@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>butime // timer</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      overflow: hidden;
+    }
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .ov {
+      -webkit-app-region: drag;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(15, 17, 23, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 12px;
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      font-family: 'Consolas', 'Menlo', 'Courier New', monospace;
+      color: #e6e6f0;
+    }
+    .ov-mode {
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: #8b93a7;
+    }
+    .ov-time {
+      font-size: 30px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .ov-time.break { color: #4ade80; }
+    .ov-time.done { color: #e0535a; }
+    .ov-progress {
+      display: flex;
+      gap: 4px;
+    }
+    .ov-progress span {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #2a2f3a;
+    }
+    .ov-progress span.done {
+      background: #6b7db3;
+    }
+    .ov-title {
+      font-size: 10px;
+      color: #aab2c6;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .ov-close {
+      -webkit-app-region: no-drag;
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      background: none;
+      border: none;
+      color: #5a6380;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      padding: 2px;
+    }
+    .ov-close:hover { color: #e0535a; }
+  </style>
+</head>
+<body>
+  <div class="ov">
+    <button class="ov-close" id="ovClose" title="Hide overlay">✕</button>
+    <div class="ov-mode" id="ovMode">FOCUS</div>
+    <div class="ov-time" id="ovTime">25:00</div>
+    <div class="ov-progress" id="ovProgress"></div>
+    <div class="ov-title" id="ovTitle" style="display:none"></div>
+  </div>
+  <script src="overlay.js"></script>
+</body>
+</html>
