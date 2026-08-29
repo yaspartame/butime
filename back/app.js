@@ -182,6 +182,7 @@ function openSettings() {
   document.getElementById('setNearImmediate').value = s.defaultNearImmediate;
   document.getElementById('setNearScheduled').value = s.defaultNearScheduled;
   document.getElementById('setPerTodoUrgency').checked = s.perTodoUrgency;
+  document.getElementById('setAutoStart').checked = !!s.autostart;
   const ca = (s.closeAction === 'quit') ? 'quit' : 'minimize';
   document.querySelectorAll('#closeActionSelector .mode-option').forEach(o => o.classList.toggle('active', o.dataset.closeaction === ca));
   switchView('settings');
@@ -216,9 +217,11 @@ document.getElementById('settingsSaveBtn').addEventListener('click', () => {
     defaultNearImmediate: parseInt(document.getElementById('setNearImmediate').value,10) || 24,
     defaultNearScheduled: parseInt(document.getElementById('setNearScheduled').value,10) || 48,
     perTodoUrgency: document.getElementById('setPerTodoUrgency').checked,
+    autostart: document.getElementById('setAutoStart').checked,
     closeAction,
   });
   if (window.butime && window.butime.setCloseAction) window.butime.setCloseAction(closeAction);
+  if (window.butime && window.butime.setAutoStart) window.butime.setAutoStart(document.getElementById('setAutoStart').checked);
   switchView(settingsReturnView());
 });
 document.querySelectorAll('#closeActionSelector .mode-option').forEach(o => o.addEventListener('click', () => {
@@ -2222,4 +2225,9 @@ applyModeUI();
 if (window.butime && window.butime.setCloseAction) {
   const s = getSettings();
   window.butime.setCloseAction(s.closeAction === 'quit' ? 'quit' : 'minimize');
+}
+// Tell the Electron main process whether butime should launch at Windows startup.
+if (window.butime && window.butime.setAutoStart) {
+  const s = getSettings();
+  window.butime.setAutoStart(!!s.autostart);
 }

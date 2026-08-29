@@ -131,6 +131,10 @@ ipcMain.on('pomo:overlay', (_e, show) => {
 ipcMain.on('app:closeAction', (_e, action) => {
   closeAction = (action === 'quit') ? 'quit' : 'minimize';
 });
+// Launch automatically when the user signs in to Windows
+ipcMain.on('app:autostart', (_e, enable) => {
+  app.setLoginItemSettings({ openAtLogin: !!enable });
+});
 
 app.on('before-quit', () => { isQuitting = true; });
 app.on('window-all-closed', () => {
