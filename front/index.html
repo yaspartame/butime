@@ -485,6 +485,17 @@
           <button class="bbu-quick bbu-clear" id="bbuDateClear">✕ Clear date</button>
         </div>
         <div class="bbu-priority-panel" id="bbuPriorityPanel" style="display:none"></div>
+        <div class="bbu-clock-panel" id="bbuClockPanel" style="display:none">
+          <div class="bbu-clock-top">
+            <span class="bbu-clock-time" id="bbuClockTime">9:00</span>
+            <div class="bbu-clock-ampm">
+              <button type="button" class="bbu-clock-ampm-btn" data-ampm="AM">AM</button>
+              <button type="button" class="bbu-clock-ampm-btn" data-ampm="PM">PM</button>
+            </div>
+          </div>
+          <div class="bbu-clock-dial" id="bbuClockDial"></div>
+          <span class="bbu-clock-hint">Tap the hour, then the minute</span>
+        </div>
       </div>
       <div class="bbu-modal-desc">
         <textarea id="bbuDescInput" class="bbu-desc-input" rows="1" placeholder="Add a description (optional)" maxlength="1000"></textarea>

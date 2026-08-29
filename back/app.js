@@ -32,6 +32,7 @@ let state = {
   bbuColor: null,
   bbuColorCatId: null,
   bbuColorCatEditing: null,
+  bbuClock: null,
   bbuWeekDrag: null,
 };
 
@@ -1174,6 +1175,84 @@ function closeBbuModal() {
 function closeBbuPanels() {
   document.getElementById('bbuDatePanel').style.display = 'none';
   document.getElementById('bbuPriorityPanel').style.display = 'none';
+  document.getElementById('bbuClockPanel').style.display = 'none';
+  state.bbuClock = null;
+}
+
+// ---- Analog clock time picker (Android-style dial) ----
+function bbuClockOpen(target) {
+  const t = target === 'end' ? state.bbuModal.endTime : state.bbuModal.time;
+  let h = 9, m = 0;
+  if (t) {
+    const [hh, mm] = t.split(':').map(Number);
+    if (!isNaN(hh)) h = hh;
+    if (!isNaN(mm)) m = mm;
+  }
+  closeBbuPanels();
+  state.bbuClock = { target, hour: h, minute: m, mode: 'hour' };
+  document.getElementById('bbuClockPanel').style.display = 'block';
+  renderBbuClock();
+}
+function closeBbuClock() {
+  document.getElementById('bbuClockPanel').style.display = 'none';
+  state.bbuClock = null;
+}
+function renderBbuClock() {
+  const c = state.bbuClock;
+  if (!c) return;
+  const displayHour = c.hour % 12 || 12;
+  document.getElementById('bbuClockTime').textContent = `${displayHour}:${String(c.minute).padStart(2, '0')}`;
+  const ampm = c.hour < 12 ? 'AM' : 'PM';
+  document.querySelectorAll('.bbu-clock-ampm-btn').forEach(b => b.classList.toggle('active', b.dataset.ampm === ampm));
+  const dial = document.getElementById('bbuClockDial');
+  dial.innerHTML = '';
+  const isHour = c.mode === 'hour';
+  for (let i = 0; i < 12; i++) {
+    const label = isHour ? (i === 0 ? 12 : i) : (i * 5);
+    const tick = document.createElement('div');
+    tick.className = 'bbu-clock-tick';
+    tick.textContent = isHour ? String(label) : String(label).padStart(2, '0');
+    const ang = (i * 30 - 90) * Math.PI / 180;
+    const R = 78;
+    tick.style.left = (100 + Math.cos(ang) * R) + 'px';
+    tick.style.top = (100 + Math.sin(ang) * R) + 'px';
+    const current = isHour ? (c.hour % 12 || 12) : (c.minute - (c.minute % 5));
+    if (label === current) tick.classList.add('active');
+    tick.addEventListener('click', () => {
+      if (isHour) bbuClockPickHour(label);
+      else bbuClockPickMinute(label);
+    });
+    dial.appendChild(tick);
+  }
+}
+function bbuClockPickHour(h) {
+  const c = state.bbuClock;
+  if (!c) return;
+  // 12-hour dial -> 24h using the current meridiem.
+  let h24 = h % 12;
+  if (c.hour >= 12) h24 += 12; // currently PM
+  c.hour = h24;
+  c.mode = 'minute';
+  renderBbuClock();
+}
+function bbuClockPickMinute(m) {
+  if (!state.bbuClock) return;
+  state.bbuClock.minute = m;
+  bbuClockApply();
+}
+function bbuClockToggleAmpm() {
+  const c = state.bbuClock;
+  if (!c) return;
+  c.hour = (c.hour + 12) % 24;
+  renderBbuClock();
+}
+function bbuClockApply() {
+  const c = state.bbuClock;
+  if (!c) return;
+  const timeStr = bbuMinToTime(c.hour * 60 + c.minute);
+  if (c.target === 'end') { state.bbuModal.endTime = timeStr; renderBbuEndTime(); }
+  else { state.bbuModal.time = timeStr; renderBbuTime(); }
+  closeBbuClock();
 }
 function renderBbuQuadrantRow() {
   const row = document.getElementById('bbuQuadrantRow');
@@ -1783,18 +1862,22 @@ function initBbuPanels() {
   const timeField = document.getElementById('bbuTimeField');
   timeField.addEventListener('click', (e) => {
     if (e.target.closest('#bbuTimeClearBtn')) return;
-    openNative(document.getElementById('bbuTimeInput'));
+    const wasOpen = document.getElementById('bbuClockPanel').style.display !== 'none';
+    closeBbuPanels();
+    if (!wasOpen) bbuClockOpen('start');
   });
-  document.getElementById('bbuTimeInput').addEventListener('change', (e) => { state.bbuModal.time = e.target.value || null; renderBbuTime(); });
   document.getElementById('bbuTimeClearBtn').addEventListener('click', (e) => { e.stopPropagation(); state.bbuModal.time = null; renderBbuTime(); });
 
   const endTimeField = document.getElementById('bbuEndTimeField');
   endTimeField.addEventListener('click', (e) => {
     if (e.target.closest('#bbuEndTimeClearBtn')) return;
-    openNative(document.getElementById('bbuEndTimeInput'));
+    const wasOpen = document.getElementById('bbuClockPanel').style.display !== 'none';
+    closeBbuPanels();
+    if (!wasOpen) bbuClockOpen('end');
   });
-  document.getElementById('bbuEndTimeInput').addEventListener('change', (e) => { state.bbuModal.endTime = e.target.value || null; renderBbuEndTime(); });
   document.getElementById('bbuEndTimeClearBtn').addEventListener('click', (e) => { e.stopPropagation(); state.bbuModal.endTime = null; renderBbuEndTime(); });
+
+  document.querySelectorAll('.bbu-clock-ampm-btn').forEach(b => b.addEventListener('click', bbuClockToggleAmpm));
 
   document.querySelectorAll('#bbuTypeToggle .bbu-type-btn').forEach(b => b.addEventListener('click', () => {
     state.bbuModal.type = b.dataset.type;
