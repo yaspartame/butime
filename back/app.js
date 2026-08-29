@@ -923,7 +923,7 @@ function renderBbuCalMonth() {
 
 function renderBbuCalOverdue(tasks) {
   const todayISO = formatDateISO(new Date());
-  const overdue = tasks.filter(t => t.type !== 'event' && !t.completed && !t.wontDo && t.dueDate && t.dueDate < todayISO).sort(bbuSortTasks);
+  const overdue = tasks.filter(t => t.type !== 'event' && t.type !== 'todo' && !t.completed && !t.wontDo && t.dueDate && t.dueDate < todayISO).sort(bbuSortTasks);
   const strip = document.getElementById('bbuCalOverdue');
   strip.innerHTML = '';
   if (!overdue.length) return;
@@ -946,11 +946,17 @@ function renderBbuMatrix() {
   const topLevel = tasks.filter(t => !t.parentId);
   wrap.innerHTML = '';
   BBU_QUADRANTS.forEach(q => {
-    const qTasks = topLevel.filter(t => t.type !== 'event' && !t.completed && !t.wontDo && !!t.urgent === q.urgent && !!t.important === q.important).sort(bbuSortTasks);
+    const qTasks = topLevel.filter(t => t.type !== 'event' && t.type !== 'todo' && !t.completed && !t.wontDo && !!t.urgent === q.urgent && !!t.important === q.important).sort(bbuSortTasks);
     const quad = document.createElement('div');
     quad.className = 'bbu-quadrant';
     quad.style.setProperty('--q', q.color);
     quad.dataset.quadrant = q.id;
+    // Right-click a quadrant -> create-task menu (same as the "+" button).
+    quad.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openBbuQuadrantCreateMenu(e, q);
+    });
     const h = document.createElement('div');
     h.className = 'bbu-quadrant-header';
     h.innerHTML = `<span class="bbu-q-dot" style="background:${q.color}"></span><span class="bbu-q-title">${q.title}</span><span class="bbu-q-hint">${q.hint}</span><span class="bbu-q-count">${qTasks.length}</span><button class="bbu-q-add" title="Add task">+</button>`;
@@ -967,7 +973,7 @@ function renderBbuMatrix() {
       bbuRenderTree(body, tasks, qTasks, {});
     }
     quad.appendChild(body);
-    const completed = topLevel.filter(t => t.type !== 'event' && t.completed && !!t.urgent === q.urgent && !!t.important === q.important);
+    const completed = topLevel.filter(t => t.type !== 'event' && t.type !== 'todo' && t.completed && !!t.urgent === q.urgent && !!t.important === q.important);
     if (completed.length > 0) {
       const ft = document.createElement('button');
       ft.className = 'bbu-q-completed';
@@ -991,7 +997,7 @@ function renderBbuMatrix() {
 function renderBbuWontDo() {
   const wrap = document.getElementById('bbuWontDo');
   const all = getBbuTasks();
-  const tasks = all.filter(t => !t.parentId && t.wontDo);
+  const tasks = all.filter(t => !t.parentId && t.type !== 'todo' && t.wontDo);
   wrap.innerHTML = '';
   if (!tasks.length) return;
   const box = document.createElement('div');
@@ -1020,26 +1026,30 @@ function createBbuTaskEl(task, opts) {
   if (task.wontDo) row.classList.add('wontdo');
   if (task.pinned) row.classList.add('pinned');
   if (task.type === 'event') row.classList.add('bbu-event');
+  if (task.type === 'todo') row.classList.add('bbu-todo');
   const compact = opts && opts.compact;
   const noDue = opts && opts.noDue;
   const timeChip = opts && opts.timeChip;
   const eventChip = opts && opts.eventChip;
-  const q = bbuQuadrantOf(task);
-  row.style.setProperty('--tc', bbuColorOf(task));
+  const isTodo = task.type === 'todo';
+  const q = isTodo ? null : bbuQuadrantOf(task);
+  if (!isTodo) row.style.setProperty('--tc', bbuColorOf(task));
   const desc = (!compact && task.description) ? `<span class="bbu-task-desc">${esc(task.description)}</span>` : '';
   const meta = [];
-  if (task.priority) meta.push(`<span class="bbu-flag" style="color:${bbuPriorityMeta(task.priority).color}">${svgFlag()}</span>`);
-  if (task.pinned) meta.push('<span class="bbu-pin">📌</span>');
-  if (timeChip && task.time) meta.push(`<span class="bbu-due-chip">${bbuTimeLabel(task)}</span>`);
-  // Events in the list show the full date + start–end time: "Thu 27 Aug · 2:00 PM – 3:00 PM"
-  if (eventChip) {
-    const parts = [];
-    if (task.dueDate) parts.push(bbuEventDateLabel(task));
-    if (task.time) parts.push(bbuTimeLabel(task));
-    if (parts.length) meta.push(`<span class="bbu-due-chip">${parts.join(' · ')}</span>`);
-  }
-  if (task.dueDate && !compact && !noDue) {
-    meta.push(`<span class="bbu-due-chip ${bbuIsOverdue(task) ? 'overdue' : ''}">${bbuDueLabel(task)}${task.time ? ' · ' + bbuTimeLabel(task) : ''}</span>`);
+  if (!isTodo) {
+    if (task.priority) meta.push(`<span class="bbu-flag" style="color:${bbuPriorityMeta(task.priority).color}">${svgFlag()}</span>`);
+    if (task.pinned) meta.push('<span class="bbu-pin">📌</span>');
+    if (timeChip && task.time) meta.push(`<span class="bbu-due-chip">${bbuTimeLabel(task)}</span>`);
+    // Events in the list show the full date + start–end time: "Thu 27 Aug · 2:00 PM – 3:00 PM"
+    if (eventChip) {
+      const parts = [];
+      if (task.dueDate) parts.push(bbuEventDateLabel(task));
+      if (task.time) parts.push(bbuTimeLabel(task));
+      if (parts.length) meta.push(`<span class="bbu-due-chip">${parts.join(' · ')}</span>`);
+    }
+    if (task.dueDate && !compact && !noDue) {
+      meta.push(`<span class="bbu-due-chip ${bbuIsOverdue(task) ? 'overdue' : ''}">${bbuDueLabel(task)}${task.time ? ' · ' + bbuTimeLabel(task) : ''}</span>`);
+    }
   }
   row.innerHTML = `<div class="bbu-check ${task.completed ? 'checked' : ''}"></div><div class="bbu-task-main"><span class="bbu-task-name">${esc(task.name)}</span>${desc}</div>${meta.length ? `<div class="bbu-task-meta">${meta.join('')}</div>` : ''}`;
   row.addEventListener('click', (e) => { if (e.target.closest('.bbu-check')) return; openBbuModal({ mode: 'edit', editId: task.id }); });
@@ -1077,13 +1087,30 @@ function renderBbuList() {
 
   // --- Tasks: a flat list sorted like the matrix (by quadrant), colour coded ---
   const qOrder = { q1: 0, q2: 1, q3: 2, q4: 3 };
-  const tasks = topLevel.filter(t => t.type !== 'event' && !t.completed && !t.wontDo)
+  const tasks = topLevel.filter(t => t.type !== 'event' && t.type !== 'todo' && !t.completed && !t.wontDo)
     .sort((a, b) => (qOrder[bbuQuadrantOf(a).id] - qOrder[bbuQuadrantOf(b).id]) || bbuSortTasks(a, b));
   const tTitle = document.createElement('div');
   tTitle.className = 'bbu-list-title';
   tTitle.textContent = tasks.length ? `ALL TASKS (${tasks.length})` : 'ALL TASKS';
   wrap.appendChild(tTitle);
   if (tasks.length) bbuRenderTree(wrap, all, tasks, {});
+
+  // --- To-Do: a plain list (no dates, no flags, no colours), always with a + add button ---
+  const todos = topLevel.filter(t => t.type === 'todo' && !t.completed && !t.wontDo).slice().sort(bbuSortTasks);
+  const todoHead = document.createElement('div');
+  todoHead.className = 'bbu-list-head bbu-list-head-todo';
+  const todoTitle = document.createElement('div');
+  todoTitle.className = 'bbu-list-title';
+  todoTitle.textContent = todos.length ? `TO DO (${todos.length})` : 'TO DO';
+  todoHead.appendChild(todoTitle);
+  const todoAdd = document.createElement('button');
+  todoAdd.className = 'bbu-list-add';
+  todoAdd.textContent = '+';
+  todoAdd.title = 'Add to-do';
+  todoAdd.addEventListener('click', (e) => { e.stopPropagation(); openBbuModal({ mode: 'create', type: 'todo' }); });
+  todoHead.appendChild(todoAdd);
+  wrap.appendChild(todoHead);
+  if (todos.length) bbuRenderTree(wrap, all, todos, {});
 
   // --- Events: own section, colour coded, sorted by colour, with start–end time ---
   const events = topLevel.filter(t => t.type === 'event' && !t.completed && !t.wontDo)
@@ -1118,7 +1145,7 @@ function renderBbuList() {
     bbuRenderTree(wrap, all, wontdo, {});
   }
 
-  if (!tasks.length && !events.length && !completed.length && !wontdo.length) {
+  if (!tasks.length && !todos.length && !events.length && !completed.length && !wontdo.length) {
     const e = document.createElement('div');
     e.className = 'bbu-list-empty';
     e.textContent = 'No tasks yet — tap + to add one.';
@@ -1133,7 +1160,7 @@ function openBbuModal(opts) {
   let dueDate = null;
   let time = null;
   let endTime = null;
-  let type = opts.type === 'event' ? 'event' : 'task';
+  let type = opts.type === 'event' ? 'event' : (opts.type === 'todo' ? 'todo' : 'task');
   let name = '';
   let description = '';
   if (opts.mode === 'edit' && opts.editId) {
@@ -1144,7 +1171,7 @@ function openBbuModal(opts) {
     dueDate = t.dueDate || null;
     time = t.time || null;
     endTime = t.endTime || null;
-    type = t.type === 'event' ? 'event' : 'task';
+    type = t.type === 'event' ? 'event' : (t.type === 'todo' ? 'todo' : 'task');
     name = t.name;
     description = t.description || '';
   } else if (opts.mode === 'subtask' && opts.parentId) {
@@ -1155,16 +1182,18 @@ function openBbuModal(opts) {
     dueDate = p.dueDate || null;
     time = p.time || null;
     endTime = p.endTime || null;
-    type = p.type === 'event' ? 'event' : 'task';
+    type = p.type === 'event' ? 'event' : (p.type === 'todo' ? 'todo' : 'task');
   } else if (opts.mode === 'create' && opts.dueDate) {
     dueDate = opts.dueDate;
     if (opts.time) time = opts.time;
     if (opts.endTime) endTime = opts.endTime;
     if (opts.type === 'event') type = 'event';
   }
+  // To-Do items are plain: no date, no time, no flags.
+  if (type === 'todo') { dueDate = null; time = null; endTime = null; priority = 0; }
   state.bbuModal = { mode: opts.mode || 'create', parentId: opts.parentId || null, editId: opts.editId || null, quadrant, priority, dueDate, time, endTime, type, description };
   document.getElementById('bbuTaskInput').value = name;
-  document.getElementById('bbuColorOpenBtn').style.display = (state.bbuModal.mode === 'edit') ? '' : 'none';
+  document.getElementById('bbuColorOpenBtn').style.display = (state.bbuModal.mode === 'edit' && state.bbuModal.type !== 'todo') ? '' : 'none';
   const descInput = document.getElementById('bbuDescInput');
   descInput.value = description || '';
   descInput.style.height = 'auto';
@@ -1174,6 +1203,7 @@ function openBbuModal(opts) {
   renderBbuTime();
   renderBbuEndTime();
   renderBbuFlag();
+  renderBbuMetaVisibility();
   closeBbuPanels();
   document.getElementById('bbuModalOverlay').classList.add('active');
   requestAnimationFrame(() => {
@@ -1292,6 +1322,18 @@ function renderBbuDue() {
 function renderBbuType() {
   document.querySelectorAll('#bbuTypeToggle .bbu-type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === state.bbuModal.type));
 }
+// Plain to-do items hide all the metadata controls (date, time, flag, quadrant, colour).
+function renderBbuMetaVisibility() {
+  const m = state.bbuModal;
+  if (!m) return;
+  const isTodo = m.type === 'todo';
+  document.getElementById('bbuQuadrantRow').style.display = isTodo ? 'none' : '';
+  document.getElementById('bbuDueBtn').style.display = isTodo ? 'none' : '';
+  document.getElementById('bbuTimeField').style.display = isTodo ? 'none' : '';
+  document.getElementById('bbuEndTimeField').style.display = isTodo ? 'none' : (m.type === 'event' ? '' : 'none');
+  document.getElementById('bbuFlagBtn').style.display = isTodo ? 'none' : '';
+  document.getElementById('bbuColorOpenBtn').style.display = (m.mode === 'edit' && !isTodo) ? '' : 'none';
+}
 function renderBbuTime() {
   const field = document.getElementById('bbuTimeField');
   const el = document.getElementById('bbuTimeText');
@@ -1323,24 +1365,31 @@ function bbuModalSave() {
   const m = state.bbuModal;
   if (!m) return;
   // Events need a valid end time after the start.
-  let time = m.time;
-  let endTime = m.type === 'event' ? m.endTime : null;
+  const isTodo = m.type === 'todo';
+  let time = isTodo ? null : m.time;
+  let endTime = (isTodo || m.type !== 'event') ? null : m.endTime;
   if (m.type === 'event' && time) {
     if (!endTime || bbuTimeToMin(endTime) <= bbuTimeToMin(time)) endTime = bbuAddHour(time);
   }
+  // To-Do items are plain: no date, no time, no flags, no colour.
+  const dueDate = isTodo ? null : m.dueDate;
+  const priority = isTodo ? 0 : m.priority;
+  const urgent = isTodo ? false : m.quadrant.urgent;
+  const important = isTodo ? false : m.quadrant.important;
   const tasks = getBbuTasks();
   const now = new Date().toISOString();
   if (m.mode === 'edit' && m.editId) {
     const t = tasks.find(x => x.id === m.editId);
     if (t) {
       t.name = name;
-      t.urgent = m.quadrant.urgent;
-      t.important = m.quadrant.important;
-      t.priority = m.priority;
-      t.dueDate = m.dueDate;
+      t.urgent = urgent;
+      t.important = important;
+      t.priority = priority;
+      t.dueDate = dueDate;
       t.time = time;
       t.endTime = endTime;
       t.type = m.type;
+      if (isTodo) { t.color = null; t.colorCategory = null; }
       t.description = description || '';
       bbuSyncChildren(tasks, t.id);
     }
@@ -1348,7 +1397,7 @@ function bbuModalSave() {
     const p = tasks.find(x => x.id === m.parentId);
     if (p) tasks.push({ id: genId(), name, parentId: p.id, urgent: p.urgent, important: p.important, priority: p.priority, dueDate: p.dueDate, time, endTime, type: m.type, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now });
   } else {
-    tasks.push({ id: genId(), name, parentId: null, urgent: m.quadrant.urgent, important: m.quadrant.important, priority: m.priority, dueDate: m.dueDate, time, endTime, type: m.type, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now });
+    tasks.push({ id: genId(), name, parentId: null, urgent, important, priority, dueDate, time, endTime, type: m.type, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now });
   }
   saveBbuTasks(tasks);
   closeBbuModal();
@@ -1362,6 +1411,16 @@ function bbuSetType(taskId, type) {
   t.type = type;
   if (type === 'event') {
     if (!t.endTime) t.endTime = t.time ? bbuAddHour(t.time) : '09:00';
+  } else if (type === 'todo') {
+    // Converting to a plain to-do strips all the metadata.
+    t.dueDate = null;
+    t.time = null;
+    t.endTime = null;
+    t.priority = 0;
+    t.urgent = false;
+    t.important = false;
+    t.color = null;
+    t.colorCategory = null;
   } else {
     t.endTime = null;
   }
@@ -1705,6 +1764,8 @@ function openBbuContextMenu(e, taskId) {
   const t = getBbuTasks().find(x => x.id === taskId);
   if (!t) return;
   state.bbuMenuTaskId = taskId;
+  // To-Do items get their own simple menu (add subtodo / delete).
+  if (t.type === 'todo') { openBbuTodoMenu(e, t); return; }
   const q = bbuQuadrantOf(t);
   const m = document.getElementById('bbuMenu');
   const dueLabel = t.dueDate ? bbuDueLabel(t) : 'No date';
@@ -1737,7 +1798,7 @@ function openBbuContextMenu(e, taskId) {
     <div class="bbu-menu-section">
       <div class="bbu-menu-item" data-act="colour">🎨 Change colour</div>
       <div class="bbu-menu-item" data-act="subtask">${svgPlus()} Add Subtask</div>
-      <div class="bbu-menu-item" data-act="pomodoro">⏱ Add to Pomodoro</div>
+      ${t.type === 'event' ? '' : '<div class="bbu-menu-item" data-act="pomodoro">⏱ Add to Pomodoro</div>'}
       <div class="bbu-menu-item" data-act="pin">${t.pinned ? '📌 Unpin' : '📌 Pin'}</div>
       <div class="bbu-menu-item" data-act="wontdo">${t.wontDo ? '↩ Un-mark Won\'t Do' : '⛔ Won\'t Do'}</div>
       <div class="bbu-menu-item" data-act="duplicate">⎘ Duplicate</div>
@@ -1775,6 +1836,49 @@ function openBbuContextMenu(e, taskId) {
     else if (act === 'wontdo') bbuToggleWontDo(state.bbuMenuTaskId);
     else if (act === 'duplicate') bbuDuplicate(state.bbuMenuTaskId);
     else if (act === 'delete') bbuDeleteTask(state.bbuMenuTaskId);
+    closeBbuMenu();
+  }));
+}
+// Simple context menu for plain to-do items: just add a sub-todo or delete.
+function openBbuTodoMenu(e, t) {
+  const m = document.getElementById('bbuMenu');
+  m.innerHTML = `
+    <div class="bbu-menu-header"><span class="bbu-q-dot" style="background:var(--border-color)"></span><span class="bbu-menu-title">${esc(t.name)}</span></div>
+    <div class="bbu-menu-section">
+      <div class="bbu-menu-item" data-act="subtask">${svgPlus()} Add Subtodo</div>
+      <div class="bbu-menu-item danger" data-act="delete">🗑 Delete</div>
+    </div>`;
+  m.style.display = 'block';
+  const mw = m.offsetWidth, mh = m.offsetHeight;
+  let x = e.clientX, y = e.clientY;
+  if (x + mw > window.innerWidth - 8) x = window.innerWidth - mw - 8;
+  if (y + mh > window.innerHeight - 8) y = window.innerHeight - mh - 8;
+  m.style.left = Math.max(4, x) + 'px';
+  m.style.top = Math.max(4, y) + 'px';
+  m.querySelectorAll('.bbu-menu-item').forEach(it => it.addEventListener('click', () => {
+    if (it.dataset.act === 'subtask') openBbuModal({ mode: 'subtask', parentId: t.id });
+    else if (it.dataset.act === 'delete') bbuDeleteTask(t.id);
+    closeBbuMenu();
+  }));
+}
+// Right-clicking a matrix quadrant -> create-task menu (same as the "+" button).
+function openBbuQuadrantCreateMenu(e, q) {
+  const m = document.getElementById('bbuMenu');
+  state.bbuMenuCreateDate = null;
+  m.innerHTML = `
+    <div class="bbu-menu-header"><span class="bbu-q-dot" style="background:${q.color}"></span><span class="bbu-menu-title">${q.title}</span></div>
+    <div class="bbu-menu-section">
+      <div class="bbu-menu-item" data-act="create">${svgPlus()} Create task</div>
+    </div>`;
+  m.style.display = 'block';
+  const mw = m.offsetWidth, mh = m.offsetHeight;
+  let x = e.clientX, y = e.clientY;
+  if (x + mw > window.innerWidth - 8) x = window.innerWidth - mw - 8;
+  if (y + mh > window.innerHeight - 8) y = window.innerHeight - mh - 8;
+  m.style.left = Math.max(4, x) + 'px';
+  m.style.top = Math.max(4, y) + 'px';
+  m.querySelectorAll('.bbu-menu-item').forEach(it => it.addEventListener('click', () => {
+    if (it.dataset.act === 'create') openBbuModal({ mode: 'create', quadrant: q });
     closeBbuMenu();
   }));
 }
@@ -1894,12 +1998,22 @@ function initBbuPanels() {
 
   document.querySelectorAll('#bbuTypeToggle .bbu-type-btn').forEach(b => b.addEventListener('click', () => {
     state.bbuModal.type = b.dataset.type;
+    if (state.bbuModal.type === 'todo') {
+      // Switching to a plain to-do clears all the metadata.
+      state.bbuModal.dueDate = null;
+      state.bbuModal.time = null;
+      state.bbuModal.endTime = null;
+      state.bbuModal.priority = 0;
+    }
     if (state.bbuModal.type === 'event' && !state.bbuModal.endTime && state.bbuModal.time) {
       state.bbuModal.endTime = bbuAddHour(state.bbuModal.time);
     }
     renderBbuType();
     renderBbuTime();
     renderBbuEndTime();
+    renderBbuFlag();
+    renderBbuQuadrantRow();
+    renderBbuMetaVisibility();
   }));
 
   document.getElementById('bbuCalPrev').addEventListener('click', () => bbuCalStep(-1));

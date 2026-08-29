@@ -2414,14 +2414,53 @@ input[type="time"].form-input {
   margin-bottom: 16px;
 }
 
+.bbu-list-head-todo,
 .bbu-list-title-event,
 .bbu-list-dim-title {
   margin-top: 26px;
 }
 
+/* TO DO section: title with an inline "+" add button */
+.bbu-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 16px;
+}
+.bbu-list-head .bbu-list-title {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+.bbu-list-add {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: var(--radius);
+  width: 26px;
+  height: 26px;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.bbu-list-add:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
 /* Subtle but telling colour coding: each row gets a left accent in its own colour */
 .bbu-list .bbu-task {
   border-left: 3px solid var(--tc, var(--accent));
+}
+
+/* To-do rows are plain: no colour accent, just a neutral edge */
+.bbu-list .bbu-task.bbu-todo {
+  border-left: 3px solid var(--border-color);
 }
 
 .bbu-list-group {
