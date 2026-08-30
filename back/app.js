@@ -517,6 +517,16 @@ function bbuEventDateLabel(t) {
   return sameYear ? s : s + ' ' + d.getFullYear();
 }
 function bbuIsOverdue(t) { if (!t.dueDate) return false; const d = new Date(t.dueDate + 'T00:00:00'); const n = new Date(); n.setHours(0, 0, 0, 0); return d < n; }
+function bbuIsEventPast(t) {
+  if (!t.dueDate) return false;
+  const todayISO = formatDateISO(new Date());
+  if (t.dueDate < todayISO) return true;
+  if (t.dueDate > todayISO) return false;
+  const end = t.endTime || (t.time ? bbuAddHour(t.time) : null);
+  if (!end) return false;
+  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  return bbuTimeToMin(end) < nowMin;
+}
 function bbuTimeOf(time) {
   if (!time) return '';
   const [h, m] = time.split(':').map(Number);
@@ -1055,10 +1065,13 @@ function createBbuTaskEl(task, opts) {
       meta.push(`<span class="bbu-due-chip ${bbuIsOverdue(task) ? 'overdue' : ''}">${bbuDueLabel(task)}${task.time ? ' · ' + bbuTimeLabel(task) : ''}</span>`);
     }
   }
-  row.innerHTML = `<div class="bbu-check ${task.completed ? 'checked' : ''}"></div><div class="bbu-task-main"><span class="bbu-task-name">${esc(task.name)}</span>${desc}</div>${meta.length ? `<div class="bbu-task-meta">${meta.join('')}</div>` : ''}`;
+  // Events can't be completed — no check circle on them.
+  const check = task.type === 'event' ? '' : `<div class="bbu-check ${task.completed ? 'checked' : ''}"></div>`;
+  row.innerHTML = `${check}<div class="bbu-task-main"><span class="bbu-task-name">${esc(task.name)}</span>${desc}</div>${meta.length ? `<div class="bbu-task-meta">${meta.join('')}</div>` : ''}`;
   row.addEventListener('click', (e) => { if (e.target.closest('.bbu-check')) return; openBbuModal({ mode: 'edit', editId: task.id }); });
   row.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); openBbuContextMenu(e, task.id); });
-  row.querySelector('.bbu-check').addEventListener('click', (e) => { e.stopPropagation(); bbuToggleComplete(task.id); });
+  const checkEl = row.querySelector('.bbu-check');
+  if (checkEl) checkEl.addEventListener('click', (e) => { e.stopPropagation(); bbuToggleComplete(task.id); });
   return row;
 }
 
@@ -1117,7 +1130,8 @@ function renderBbuList() {
   if (todos.length) bbuRenderTree(wrap, all, todos, {});
 
   // --- Events: own section, colour coded, sorted by colour, with start–end time ---
-  const events = topLevel.filter(t => t.type === 'event' && !t.completed && !t.wontDo)
+  // Only upcoming events show here; past ones live in the calendar history.
+  const events = topLevel.filter(t => t.type === 'event' && !t.wontDo && !bbuIsEventPast(t))
     .sort((a, b) => {
       // Colour → date → time.
       const ca = bbuColorOf(a), cb = bbuColorOf(b);
@@ -1734,7 +1748,7 @@ function bbuToggleWontDo(taskId) {
 function bbuToggleComplete(taskId) {
   const tasks = getBbuTasks();
   const t = tasks.find(x => x.id === taskId);
-  if (!t) return;
+  if (!t || t.type === 'event') return; // events can't be completed
   const target = !t.completed;
   t.completed = target;
   if (target) t.wontDo = false;
@@ -1942,7 +1956,7 @@ function collectWidgetData() {
     const tasks = topLevel.filter(t => t.type === 'task' && t.dueDate === iso)
       .slice().sort((a, b) => (bbuTimeToMin(a.time) || 1440) - (bbuTimeToMin(b.time) || 1440) || a.name.localeCompare(b.name))
       .map(t => ({ name: t.name, color: bbuColorOf(t), time: t.time ? bbuTimeOf(t.time) : '' }));
-    const events = topLevel.filter(t => t.type === 'event' && t.dueDate === iso)
+    const events = topLevel.filter(t => t.type === 'event' && t.dueDate === iso && !bbuIsEventPast(t))
       .slice().sort((a, b) => {
         const ca = bbuColorOf(a), cb = bbuColorOf(b);
         if (ca !== cb) return ca < cb ? -1 : 1;

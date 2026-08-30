@@ -95,6 +95,14 @@ function saveBbuCategories(cats) { saveBbuCategoriesForInstance(getActiveInstanc
 
 /* ---- Migrate old global BBU storage into the active instance ---- */
 function migrateBbuData() {
+  try {
+    getInstances().forEach(inst => {
+      const tasks = getBbuTasksForInstance(inst.id);
+      if (tasks.some(t => t.type === 'event' && t.completed)) {
+        saveBbuTasksForInstance(inst.id, tasks.map(t => (t.type === 'event' ? { ...t, completed: false } : t)));
+      }
+    });
+  } catch (_) {}
   const old = localStorage.getItem('butime_bbu_tasks');
   if (old === null) return;
   let tasks = [];
