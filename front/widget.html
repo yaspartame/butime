@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>butime // today</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      overflow: hidden;
+    }
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .wd {
+      -webkit-app-region: drag;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(15, 17, 23, 0.94);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 12px;
+      padding: 10px 12px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-family: 'Consolas', 'Menlo', 'Courier New', monospace;
+      color: #e6e6f0;
+      overflow: hidden;
+    }
+    .wd-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .wd-title {
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: #8b93a7;
+    }
+    .wd-close {
+      -webkit-app-region: no-drag;
+      background: none;
+      border: none;
+      color: #5a6380;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      padding: 2px 4px;
+    }
+    .wd-close:hover { color: #e0535a; }
+    .wd-day {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .wd-day-label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: #aab2c6;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 4px;
+    }
+    .wd-day-label .wd-sub {
+      color: #5a6380;
+      letter-spacing: 1px;
+    }
+    .wd-cols {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .wd-col {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow: hidden;
+    }
+    .wd-col-label {
+      font-size: 8px;
+      letter-spacing: 1.5px;
+      color: #5a6380;
+    }
+    .wd-items {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .wd-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border-left: 3px solid var(--c, #6b7db3);
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 4px;
+      padding: 3px 6px;
+      min-height: 20px;
+    }
+    .wd-name {
+      font-size: 11px;
+      color: #e6e6f0;
+      line-height: 1.3;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      word-break: break-word;
+    }
+    .wd-time {
+      font-size: 9px;
+      color: #8b93a7;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .wd-empty {
+      font-size: 10px;
+      color: #4a5268;
+      padding: 2px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="wd">
+    <div class="wd-head">
+      <span class="wd-title">TODAY &amp; TOMORROW</span>
+      <button class="wd-close" id="wdClose" title="Hide widget">✕</button>
+    </div>
+    <div class="wd-day">
+      <div class="wd-day-label"><span>TODAY</span><span class="wd-sub" id="wdTodaySub"></span></div>
+      <div class="wd-cols">
+        <div class="wd-col">
+          <div class="wd-col-label">TASKS</div>
+          <div class="wd-items" id="wdTodayTasks"></div>
+        </div>
+        <div class="wd-col">
+          <div class="wd-col-label">EVENTS</div>
+          <div class="wd-items" id="wdTodayEvents"></div>
+        </div>
+      </div>
+    </div>
+    <div class="wd-day">
+      <div class="wd-day-label"><span>TOMORROW</span><span class="wd-sub" id="wdTomorrowSub"></span></div>
+      <div class="wd-cols">
+        <div class="wd-col">
+          <div class="wd-col-label">TASKS</div>
+          <div class="wd-items" id="wdTomorrowTasks"></div>
+        </div>
+        <div class="wd-col">
+          <div class="wd-col-label">EVENTS</div>
+          <div class="wd-items" id="wdTomorrowEvents"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="widget.js"></script>
+</body>
+</html>

@@ -2,6 +2,7 @@ const { app, BrowserWindow, shell, Menu, ipcMain, screen, Tray, nativeImage } = 
 const path = require('path');
 
 let overlayWin = null;
+let widgetWin = null;
 let mainWin = null;
 let tray = null;
 let isQuitting = false;
@@ -53,6 +54,8 @@ function createWindow() {
     mainWin = null;
     if (overlayWin && !overlayWin.isDestroyed()) overlayWin.destroy();
     overlayWin = null;
+    if (widgetWin && !widgetWin.isDestroyed()) widgetWin.destroy();
+    widgetWin = null;
   });
 }
 
@@ -84,6 +87,43 @@ function createOverlayWindow() {
   return overlay;
 }
 
+function createWidgetWindow() {
+  const widget = new BrowserWindow({
+    width: 340,
+    height: 420,
+    minWidth: 240,
+    minHeight: 240,
+    frame: false,
+    transparent: true,
+    resizable: true,
+    skipTaskbar: true,
+    focusable: false,
+    alwaysOnTop: false,
+    hasShadow: false,
+    fullscreenable: false,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      preload: path.join(__dirname, 'front', 'preload.js')
+    }
+  });
+  // Right edge, below the pomodoro overlay, and clamped to the screen.
+  const display = screen.getPrimaryDisplay().workArea;
+  widget.setPosition(display.x + display.width - 352, display.y + 150);
+  widget.on('move', () => {
+    const b = widget.getBounds();
+    const wa = screen.getDisplayNearestPoint({ x: b.x, y: b.y }).workArea;
+    let x = b.x, y = b.y;
+    if (y < wa.y) y = wa.y;
+    if (x < wa.x) x = wa.x;
+    if (x !== b.x || y !== b.y) widget.setPosition(x, y);
+  });
+  widget.loadFile(path.join(__dirname, 'front', 'widget.html'));
+  widget.hide();
+  return widget;
+}
+
 function createTray() {
   if (tray) tray.destroy();
   let icon = nativeImage.createFromPath(path.join(__dirname, 'build', 'tray.png'));
@@ -108,17 +148,31 @@ function createTray() {
   ]));
 }
 
-app.whenReady().then(() => {
-  createWindow();
-  createTray();
-  overlayWin = createOverlayWindow();
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-      overlayWin = createOverlayWindow();
+// Only allow a single instance — a second launch just focuses the running window.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWin) {
+      if (mainWin.isMinimized()) mainWin.restore();
+      mainWin.show();
+      mainWin.focus();
     }
   });
-});
+  app.whenReady().then(() => {
+    createWindow();
+    createTray();
+    overlayWin = createOverlayWindow();
+    widgetWin = createWidgetWindow();
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+        overlayWin = createOverlayWindow();
+        widgetWin = createWidgetWindow();
+      }
+    });
+  });
+}
 
 ipcMain.on('pomo:update', (_e, state) => {
   if (overlayWin && !overlayWin.isDestroyed()) overlayWin.webContents.send('pomo:update', state);
@@ -127,6 +181,16 @@ ipcMain.on('pomo:overlay', (_e, show) => {
   if (!overlayWin || overlayWin.isDestroyed()) return;
   if (show) overlayWin.showInactive();
   else overlayWin.hide();
+});
+// Forward the today/tomorrow data to the desktop widget.
+ipcMain.on('widget:update', (_e, data) => {
+  if (widgetWin && !widgetWin.isDestroyed()) widgetWin.webContents.send('widget:update', data);
+});
+// Show / hide the desktop widget.
+ipcMain.on('widget:show', (_e, show) => {
+  if (!widgetWin || widgetWin.isDestroyed()) return;
+  if (show) widgetWin.showInactive();
+  else widgetWin.hide();
 });
 ipcMain.on('app:closeAction', (_e, action) => {
   closeAction = (action === 'quit') ? 'quit' : 'minimize';

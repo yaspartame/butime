@@ -183,6 +183,7 @@ function openSettings() {
   document.getElementById('setNearScheduled').value = s.defaultNearScheduled;
   document.getElementById('setPerTodoUrgency').checked = s.perTodoUrgency;
   document.getElementById('setAutoStart').checked = !!s.autostart;
+  document.getElementById('setWidgetEnabled').checked = !!s.widgetEnabled;
   const ca = (s.closeAction === 'quit') ? 'quit' : 'minimize';
   document.querySelectorAll('#closeActionSelector .mode-option').forEach(o => o.classList.toggle('active', o.dataset.closeaction === ca));
   switchView('settings');
@@ -218,10 +219,12 @@ document.getElementById('settingsSaveBtn').addEventListener('click', () => {
     defaultNearScheduled: parseInt(document.getElementById('setNearScheduled').value,10) || 48,
     perTodoUrgency: document.getElementById('setPerTodoUrgency').checked,
     autostart: document.getElementById('setAutoStart').checked,
+    widgetEnabled: document.getElementById('setWidgetEnabled').checked,
     closeAction,
   });
   if (window.butime && window.butime.setCloseAction) window.butime.setCloseAction(closeAction);
   if (window.butime && window.butime.setAutoStart) window.butime.setAutoStart(document.getElementById('setAutoStart').checked);
+  if (window.butime && window.butime.toggleWidget) window.butime.toggleWidget(document.getElementById('setWidgetEnabled').checked);
   switchView(settingsReturnView());
 });
 document.querySelectorAll('#closeActionSelector .mode-option').forEach(o => o.addEventListener('click', () => {
@@ -619,6 +622,7 @@ function renderBbu() {
   if (state.bbuView === 'list') renderBbuList();
   else if (state.bbuView === 'calendar') renderBbuCalendar();
   else renderBbuMatrix();
+  pushWidgetData();
 }
 
 function renderBbuCalendar() {
@@ -1924,6 +1928,29 @@ function closeBbuMenu() {
 document.addEventListener('click', (e) => { if (!e.target.closest('#bbuMenu')) closeBbuMenu(); });
 document.addEventListener('contextmenu', (e) => { if (!e.target.closest('#bbuMenu')) closeBbuMenu(); });
 
+// ---- Desktop widget: today & tomorrow at a glance (tasks left, events right) ----
+function collectWidgetData() {
+  const todayISO = formatDateISO(new Date());
+  const tm = new Date(); tm.setDate(tm.getDate() + 1);
+  const tomorrowISO = formatDateISO(tm);
+  const all = getBbuTasks();
+  const topLevel = all.filter(t => !t.parentId && !t.completed && !t.wontDo);
+  const day = (iso, date) => {
+    const tasks = topLevel.filter(t => t.type === 'task' && t.dueDate === iso)
+      .slice().sort((a, b) => (bbuTimeToMin(a.time) || 1440) - (bbuTimeToMin(b.time) || 1440) || a.name.localeCompare(b.name))
+      .map(t => ({ name: t.name, color: bbuColorOf(t), time: t.time ? bbuTimeOf(t.time) : '' }));
+    const events = topLevel.filter(t => t.type === 'event' && t.dueDate === iso)
+      .slice().sort((a, b) => (bbuTimeToMin(a.time) || 1440) - (bbuTimeToMin(b.time) || 1440) || a.name.localeCompare(b.name))
+      .map(t => ({ name: t.name, color: bbuColorOf(t), time: bbuTimeOf(t.time) }));
+    const label = `${DAY_SHORT[(date.getDay() + 6) % 7]} ${date.getDate()} ${MONTH_SHORT[date.getMonth()]}`;
+    return { label, tasks, events };
+  };
+  return { today: day(todayISO, new Date()), tomorrow: day(tomorrowISO, tm) };
+}
+function pushWidgetData() {
+  if (window.butime && window.butime.sendWidgetData) window.butime.sendWidgetData(collectWidgetData());
+}
+
 function initBbuPanels() {
   // Clicking a whole native field opens the browser's picker popup.
   function openNative(input) {
@@ -2345,3 +2372,10 @@ if (window.butime && window.butime.setAutoStart) {
   const s = getSettings();
   window.butime.setAutoStart(!!s.autostart);
 }
+// Desktop widget: show it on startup if enabled, and keep it fresh.
+if (window.butime && window.butime.toggleWidget) {
+  const s = getSettings();
+  window.butime.toggleWidget(!!s.widgetEnabled);
+}
+pushWidgetData();
+setInterval(pushWidgetData, 60000);

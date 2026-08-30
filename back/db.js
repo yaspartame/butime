@@ -60,7 +60,7 @@ function getSettings() {
   try { return Object.assign({}, getDefaultSettings(), JSON.parse(localStorage.getItem('butime_settings')) || {}); }
   catch { return getDefaultSettings(); }
 }
-function getDefaultSettings() { return { defaultNearImmediate: 24, defaultNearScheduled: 48, perTodoUrgency: false, closeAction: 'minimize', autostart: true }; }
+function getDefaultSettings() { return { defaultNearImmediate: 24, defaultNearScheduled: 48, perTodoUrgency: false, closeAction: 'minimize', autostart: true, widgetEnabled: true }; }
 function saveSettings(s) { localStorage.setItem('butime_settings', JSON.stringify(s)); }
 
 // BBU Data layer

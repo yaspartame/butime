@@ -1,7 +1,7 @@
 {
   "name": "butime",
   "productName": "butime",
-  "version": "1.3.3",
+  "version": "2.0.0-beta",
   "description": "Offline time-management app",
   "main": "main.js",
   "author": "Miyakazine",
@@ -17,7 +17,7 @@
   "build": {
     "appId": "com.meow.butime",
     "productName": "butime",
-    "files": ["main.js", "front/**/*", "back/**/*"],
+    "files": ["main.js", "front/**/*", "back/**/*", "build/tray.png"],
     "win": {
       "target": ["nsis"],
       "icon": "build/icon.ico"
