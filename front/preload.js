@@ -11,4 +11,5 @@ contextBridge.exposeInMainWorld('butime', {
 
   onPomoState: (cb) => ipcRenderer.on('pomo:update', (_e, state) => cb(state)),
   onWidgetData: (cb) => ipcRenderer.on('widget:update', (_e, data) => cb(data)),
+  onWidgetVisibility: (cb) => ipcRenderer.on('widget:visibility', (_e, visible) => cb(visible)),
 });

@@ -187,6 +187,13 @@ html, body {
   background: var(--bg-tertiary);
 }
 
+/* Header widget toggle: lit up when the Today & Tomorrow widget is open */
+.widget-toggle-btn.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg-primary);
+}
+
 .week-label {
   font-family: var(--font-mono);
   font-size: 11px;

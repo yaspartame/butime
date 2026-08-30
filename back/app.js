@@ -1951,6 +1951,19 @@ function pushWidgetData() {
   if (window.butime && window.butime.sendWidgetData) window.butime.sendWidgetData(collectWidgetData());
 }
 
+// ---- Widget toggle: the header button reflects whether the widget is open ----
+let widgetVisible = false;
+function setWidgetButton(visible) {
+  widgetVisible = !!visible;
+  const btn = document.getElementById('widgetToggleBtn');
+  if (btn) btn.classList.toggle('active', widgetVisible);
+}
+function widgetToggle() {
+  widgetVisible = !widgetVisible;
+  if (window.butime && window.butime.toggleWidget) window.butime.toggleWidget(widgetVisible);
+  setWidgetButton(widgetVisible);
+}
+
 function initBbuPanels() {
   // Clicking a whole native field opens the browser's picker popup.
   function openNative(input) {
@@ -2372,10 +2385,15 @@ if (window.butime && window.butime.setAutoStart) {
   const s = getSettings();
   window.butime.setAutoStart(!!s.autostart);
 }
-// Desktop widget: show it on startup if enabled, and keep it fresh.
+// Desktop widget: show it on startup if enabled, keep it fresh, and sync the header toggle.
 if (window.butime && window.butime.toggleWidget) {
   const s = getSettings();
   window.butime.toggleWidget(!!s.widgetEnabled);
 }
+if (window.butime && window.butime.onWidgetVisibility) {
+  window.butime.onWidgetVisibility((v) => setWidgetButton(v));
+}
+setWidgetButton(!!getSettings().widgetEnabled);
+document.getElementById('widgetToggleBtn').addEventListener('click', widgetToggle);
 pushWidgetData();
 setInterval(pushWidgetData, 60000);

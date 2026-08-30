@@ -1,5 +1,6 @@
 const { app, BrowserWindow, shell, Menu, ipcMain, screen, Tray, nativeImage } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 let overlayWin = null;
 let widgetWin = null;
@@ -7,6 +8,20 @@ let mainWin = null;
 let tray = null;
 let isQuitting = false;
 let closeAction = 'minimize'; //hi
+
+// Widget size/position persistence (survives restarts, including a full close).
+const widgetStateFile = () => path.join(app.getPath('userData'), 'widget-state.json');
+let widgetSaveTimer = null;
+function loadWidgetState() {
+  try { return JSON.parse(fs.readFileSync(widgetStateFile(), 'utf8')); } catch (_) { return null; }
+}
+function saveWidgetState(b) {
+  try { fs.writeFileSync(widgetStateFile(), JSON.stringify({ x: b.x, y: b.y, width: b.width, height: b.height })); } catch (_) {}
+}
+function debouncedWidgetSave(b) {
+  clearTimeout(widgetSaveTimer);
+  widgetSaveTimer = setTimeout(() => saveWidgetState(b), 400);
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -108,17 +123,21 @@ function createWidgetWindow() {
       preload: path.join(__dirname, 'front', 'preload.js')
     }
   });
-  // Right edge, below the pomodoro overlay, and clamped to the screen.
+  // Restore the last size/position (persisted across restarts), clamped to the screen.
+  const saved = loadWidgetState();
   const display = screen.getPrimaryDisplay().workArea;
-  widget.setPosition(display.x + display.width - 352, display.y + 150);
-  widget.on('move', () => {
-    const b = widget.getBounds();
-    const wa = screen.getDisplayNearestPoint({ x: b.x, y: b.y }).workArea;
-    let x = b.x, y = b.y;
+  if (saved && saved.width && saved.height) {
+    const wa = screen.getDisplayNearestPoint({ x: saved.x, y: saved.y }).workArea;
+    let x = saved.x, y = saved.y;
     if (y < wa.y) y = wa.y;
     if (x < wa.x) x = wa.x;
-    if (x !== b.x || y !== b.y) widget.setPosition(x, y);
-  });
+    widget.setBounds({ x, y, width: Math.max(240, saved.width), height: Math.max(240, saved.height) });
+  } else {
+    widget.setPosition(display.x + display.width - 352, display.y + 150);
+  }
+  // Remember the widget's size/position, even after fully closing the app.
+  widget.on('resize', () => { if (!widget.isDestroyed()) debouncedWidgetSave(widget.getBounds()); });
+  widget.on('move', () => { if (!widget.isDestroyed()) debouncedWidgetSave(widget.getBounds()); });
   widget.loadFile(path.join(__dirname, 'front', 'widget.html'));
   widget.hide();
   return widget;
@@ -191,6 +210,8 @@ ipcMain.on('widget:show', (_e, show) => {
   if (!widgetWin || widgetWin.isDestroyed()) return;
   if (show) widgetWin.showInactive();
   else widgetWin.hide();
+  // Keep the app's header toggle in sync with the widget's actual visibility.
+  if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('widget:visibility', !!show);
 });
 ipcMain.on('app:closeAction', (_e, action) => {
   closeAction = (action === 'quit') ? 'quit' : 'minimize';
@@ -200,7 +221,13 @@ ipcMain.on('app:autostart', (_e, enable) => {
   app.setLoginItemSettings({ openAtLogin: !!enable });
 });
 
-app.on('before-quit', () => { isQuitting = true; });
+app.on('before-quit', () => {
+  isQuitting = true;
+  if (widgetWin && !widgetWin.isDestroyed()) {
+    clearTimeout(widgetSaveTimer);
+    saveWidgetState(widgetWin.getBounds());
+  }
+});
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
