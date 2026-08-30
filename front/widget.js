@@ -3,19 +3,65 @@
 // tasks are never labelled urgent/important, events are coloured by their category.
 (function () {
   const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const WID = params.get('id') || 'w1';
+  const isMain = WID === 'w1';
 
+  // X closes this widget (main persists as hidden; added ones close entirely).
   document.getElementById('wdClose').addEventListener('click', () => {
-    if (window.butime) window.butime.toggleWidget(false);
+    if (window.butime) window.butime.widgetClose(WID);
   });
 
-  if (window.butime && window.butime.onWidgetData) {
-    window.butime.onWidgetData((d) => render(d));
+  // "+" to add another instance — only the main widget has it.
+  const addWrap = document.getElementById('wdAddWrap');
+  if (!isMain && addWrap) addWrap.style.display = 'none';
+  const addBtn = document.getElementById('wdAdd');
+  const menu = document.getElementById('wdAddMenu');
+  if (addBtn) {
+    addBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.classList.toggle('open');
+    });
+    menu.addEventListener('click', (e) => {
+      const it = e.target.closest('.wd-inst');
+      if (!it || it.classList.contains('wd-inst-empty')) return;
+      if (window.butime) window.butime.widgetAdd(it.dataset.instance);
+      menu.classList.remove('open');
+    });
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.wd-add-wrap')) menu.classList.remove('open');
+    });
   }
 
-  function render(d) {
-    if (!d) return;
-    renderDay('wdToday', d.today);
-    renderDay('wdTomorrow', d.tomorrow);
+  if (window.butime && window.butime.onWidgetData) {
+    window.butime.onWidgetData((p) => render(p));
+  }
+  // Just loaded — ask the app to send us fresh data.
+  if (window.butime && window.butime.widgetGetData) window.butime.widgetGetData(WID);
+
+  function render(p) {
+    if (!p) return;
+    $('wdTitle').textContent = String(p.instanceName || '').toUpperCase() || 'TODAY & TOMORROW';
+    renderDay('wdToday', p.data && p.data.today);
+    renderDay('wdTomorrow', p.data && p.data.tomorrow);
+    if (menu) {
+      menu.innerHTML = '';
+      const avail = p.availableInstances || [];
+      if (!avail.length) {
+        const e = document.createElement('div');
+        e.className = 'wd-inst wd-inst-empty';
+        e.textContent = 'No more instances';
+        menu.appendChild(e);
+      } else {
+        avail.forEach(inst => {
+          const it = document.createElement('div');
+          it.className = 'wd-inst';
+          it.dataset.instance = inst.id;
+          it.textContent = inst.name;
+          menu.appendChild(it);
+        });
+      }
+    }
   }
 
   function renderDay(prefix, day) {

@@ -3,24 +3,37 @@ const path = require('path');
 const fs = require('fs');
 
 let overlayWin = null;
-let widgetWin = null;
+let widgets = [];
 let mainWin = null;
 let tray = null;
 let isQuitting = false;
 let closeAction = 'minimize'; //hi
 
-// Widget size/position persistence (survives restarts, including a full close).
-const widgetStateFile = () => path.join(app.getPath('userData'), 'widget-state.json');
+// Widget config persistence: which widgets exist, which instance each shows, and
+// each widget's size/position — survives restarts, including a full close.
+const widgetStateFile = () => path.join(app.getPath('userData'), 'widget-state.json'); // legacy (migration)
+const widgetConfigFile = () => path.join(app.getPath('userData'), 'widgets-config.json');
+let widgetCfg = { widgets: [{ id: 'w1', instanceId: null }], bounds: {} };
 let widgetSaveTimer = null;
-function loadWidgetState() {
-  try { return JSON.parse(fs.readFileSync(widgetStateFile(), 'utf8')); } catch (_) { return null; }
+function loadWidgetConfig() {
+  let cfg = null;
+  try { cfg = JSON.parse(fs.readFileSync(widgetConfigFile(), 'utf8')); } catch (_) { cfg = null; }
+  if (!cfg || !Array.isArray(cfg.widgets) || !cfg.widgets.length) {
+    // Migrate the old single-widget size/position into the main widget.
+    let old = null;
+    try { old = JSON.parse(fs.readFileSync(widgetStateFile(), 'utf8')); } catch (_) { old = null; }
+    cfg = { widgets: [{ id: 'w1', instanceId: null }], bounds: old ? { w1: old } : {} };
+  }
+  if (!cfg.bounds) cfg.bounds = {};
+  return cfg;
 }
-function saveWidgetState(b) {
-  try { fs.writeFileSync(widgetStateFile(), JSON.stringify({ x: b.x, y: b.y, width: b.width, height: b.height })); } catch (_) {}
+function persistWidgetConfig() {
+  try { fs.writeFileSync(widgetConfigFile(), JSON.stringify(widgetCfg)); } catch (_) {}
 }
-function debouncedWidgetSave(b) {
+function saveWidgetBounds(id, b) {
+  widgetCfg.bounds[id] = { x: b.x, y: b.y, width: b.width, height: b.height };
   clearTimeout(widgetSaveTimer);
-  widgetSaveTimer = setTimeout(() => saveWidgetState(b), 400);
+  widgetSaveTimer = setTimeout(persistWidgetConfig, 400);
 }
 
 function createWindow() {
@@ -69,8 +82,8 @@ function createWindow() {
     mainWin = null;
     if (overlayWin && !overlayWin.isDestroyed()) overlayWin.destroy();
     overlayWin = null;
-    if (widgetWin && !widgetWin.isDestroyed()) widgetWin.destroy();
-    widgetWin = null;
+    widgets.forEach(w => { if (w.win && !w.win.isDestroyed()) w.win.destroy(); });
+    widgets = [];
   });
 }
 
@@ -102,8 +115,10 @@ function createOverlayWindow() {
   return overlay;
 }
 
-function createWidgetWindow() {
-  const widget = new BrowserWindow({
+// Create a widget window bound to a butime instance (null = the active instance).
+// The URL carries ?id=<widgetId>&instance=<instanceId> so the widget knows its role.
+function createWidgetWindow(id, instanceId) {
+  const win = new BrowserWindow({
     width: 340,
     height: 420,
     minWidth: 240,
@@ -123,24 +138,25 @@ function createWidgetWindow() {
       preload: path.join(__dirname, 'front', 'preload.js')
     }
   });
-  // Restore the last size/position (persisted across restarts), clamped to the screen.
-  const saved = loadWidgetState();
+  // Restore the last size/position (persisted per widget), clamped to the screen.
+  const saved = widgetCfg.bounds && widgetCfg.bounds[id];
   const display = screen.getPrimaryDisplay().workArea;
   if (saved && saved.width && saved.height) {
     const wa = screen.getDisplayNearestPoint({ x: saved.x, y: saved.y }).workArea;
     let x = saved.x, y = saved.y;
     if (y < wa.y) y = wa.y;
     if (x < wa.x) x = wa.x;
-    widget.setBounds({ x, y, width: Math.max(240, saved.width), height: Math.max(240, saved.height) });
+    win.setBounds({ x, y, width: Math.max(240, saved.width), height: Math.max(240, saved.height) });
   } else {
-    widget.setPosition(display.x + display.width - 352, display.y + 150);
+    // Cascade new widgets away from the existing ones.
+    const offset = widgets.length * 24;
+    win.setPosition(display.x + display.width - 352 - offset, display.y + 150 + offset);
   }
-  // Remember the widget's size/position, even after fully closing the app.
-  widget.on('resize', () => { if (!widget.isDestroyed()) debouncedWidgetSave(widget.getBounds()); });
-  widget.on('move', () => { if (!widget.isDestroyed()) debouncedWidgetSave(widget.getBounds()); });
-  widget.loadFile(path.join(__dirname, 'front', 'widget.html'));
-  widget.hide();
-  return widget;
+  win.on('resize', () => { if (!win.isDestroyed()) saveWidgetBounds(id, win.getBounds()); });
+  win.on('move', () => { if (!win.isDestroyed()) saveWidgetBounds(id, win.getBounds()); });
+  win.loadFile(path.join(__dirname, 'front', 'widget.html'), { query: { id, instance: instanceId || '' } });
+  win.hide();
+  return { id, instanceId, win };
 }
 
 function createTray() {
@@ -182,12 +198,19 @@ if (!app.requestSingleInstanceLock()) {
     createWindow();
     createTray();
     overlayWin = createOverlayWindow();
-    widgetWin = createWidgetWindow();
+    widgetCfg = loadWidgetConfig();
+    // Recreate every widget that was open when the app last closed.
+    widgetCfg.widgets.forEach(w => {
+      if (w && w.id) widgets.push(createWidgetWindow(w.id, w.instanceId || null));
+    });
+    if (!widgets.length) widgets.push(createWidgetWindow('w1', null));
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         createWindow();
         overlayWin = createOverlayWindow();
-        widgetWin = createWidgetWindow();
+        widgets.forEach(w => { if (w.win && !w.win.isDestroyed()) w.win.destroy(); });
+        widgets = [];
+        widgetCfg.widgets.forEach(w => { if (w && w.id) widgets.push(createWidgetWindow(w.id, w.instanceId || null)); });
       }
     });
   });
@@ -201,18 +224,65 @@ ipcMain.on('pomo:overlay', (_e, show) => {
   if (show) overlayWin.showInactive();
   else overlayWin.hide();
 });
-// Forward the today/tomorrow data to the desktop widget.
-ipcMain.on('widget:update', (_e, data) => {
-  if (widgetWin && !widgetWin.isDestroyed()) widgetWin.webContents.send('widget:update', data);
+// Forward today/tomorrow data to a specific widget window.
+ipcMain.on('widget:update', (_e, payload) => {
+  const w = widgets.find(x => x.id === (payload && payload.id));
+  if (w && w.win && !w.win.isDestroyed()) w.win.webContents.send('widget:update', payload);
 });
-// Show / hide the desktop widget.
-ipcMain.on('widget:show', (_e, show) => {
-  if (!widgetWin || widgetWin.isDestroyed()) return;
-  if (show) widgetWin.showInactive();
-  else widgetWin.hide();
-  // Keep the app's header toggle in sync with the widget's actual visibility.
-  if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('widget:visibility', !!show);
+// Show / hide a widget window (the header toggle targets the main one).
+ipcMain.on('widget:show', (_e, payload) => {
+  const id = (payload && payload.id) || 'w1';
+  const show = !!(payload && payload.show);
+  const w = widgets.find(x => x.id === id);
+  if (!w || !w.win || w.win.isDestroyed()) return;
+  if (show) w.win.showInactive();
+  else w.win.hide();
+  // Keep the app's header toggle in sync with the main widget's visibility.
+  if (id === 'w1' && mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('widget:visibility', show);
 });
+// Add a new widget bound to an instance.
+ipcMain.on('widget:add', (_e, instanceId) => {
+  if (!instanceId) return;
+  if (widgets.some(w => w.id !== 'w1' && w.instanceId === instanceId)) return; // already added
+  const id = 'w' + Date.now().toString(36);
+  widgets.push(createWidgetWindow(id, instanceId));
+  widgetCfg.widgets = widgets.map(w => ({ id: w.id, instanceId: w.instanceId }));
+  persistWidgetConfig();
+  const w = widgets.find(x => x.id === id);
+  if (w && w.win && !w.win.isDestroyed()) w.win.showInactive();
+  broadcastWidgetList();
+});
+// Close a widget: the main widget just hides, added ones close entirely.
+ipcMain.on('widget:close', (_e, id) => {
+  const idx = widgets.findIndex(w => w.id === id);
+  if (idx === -1) return;
+  if (id === 'w1') {
+    // Main widget: hide it and persist the closed state.
+    widgets[idx].win.hide();
+    if (mainWin && !mainWin.isDestroyed()) {
+      mainWin.webContents.send('widget:visibility', false);
+      mainWin.webContents.send('widget:closed', 'w1');
+    }
+    return;
+  }
+  const w = widgets[idx];
+  if (w.win && !w.win.isDestroyed()) w.win.destroy();
+  widgets.splice(idx, 1);
+  widgetCfg.widgets = widgets.map(x => ({ id: x.id, instanceId: x.instanceId }));
+  persistWidgetConfig();
+  broadcastWidgetList();
+});
+// A widget window just loaded — ask the app for fresh data.
+ipcMain.on('widget:getdata', (_e, id) => {
+  if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('widget:refresh', id);
+});
+// The app window is ready — tell it which widgets exist.
+ipcMain.on('widget:ready', () => broadcastWidgetList());
+function broadcastWidgetList() {
+  if (mainWin && !mainWin.isDestroyed()) {
+    mainWin.webContents.send('widget:list', widgets.map(w => ({ id: w.id, instanceId: w.instanceId, isMain: w.id === 'w1' })));
+  }
+}
 ipcMain.on('app:closeAction', (_e, action) => {
   closeAction = (action === 'quit') ? 'quit' : 'minimize';
 });
@@ -223,10 +293,12 @@ ipcMain.on('app:autostart', (_e, enable) => {
 
 app.on('before-quit', () => {
   isQuitting = true;
-  if (widgetWin && !widgetWin.isDestroyed()) {
-    clearTimeout(widgetSaveTimer);
-    saveWidgetState(widgetWin.getBounds());
-  }
+  // Save the current widget set + their bounds so they restore next launch.
+  widgetCfg.widgets = widgets.map(w => ({ id: w.id, instanceId: w.instanceId }));
+  widgets.forEach(w => {
+    if (w.win && !w.win.isDestroyed()) widgetCfg.bounds[w.id] = w.win.getBounds();
+  });
+  persistWidgetConfig();
 });
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

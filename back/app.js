@@ -1946,11 +1946,11 @@ document.addEventListener('click', (e) => { if (!e.target.closest('#bbuMenu')) c
 document.addEventListener('contextmenu', (e) => { if (!e.target.closest('#bbuMenu')) closeBbuMenu(); });
 
 // ---- Desktop widget: today & tomorrow at a glance (tasks left, events right) ----
-function collectWidgetData() {
+function collectWidgetData(instanceId) {
   const todayISO = formatDateISO(new Date());
   const tm = new Date(); tm.setDate(tm.getDate() + 1);
   const tomorrowISO = formatDateISO(tm);
-  const all = getBbuTasks();
+  const all = instanceId ? getBbuTasksForInstance(instanceId) : getBbuTasks();
   const topLevel = all.filter(t => !t.parentId && !t.completed && !t.wontDo);
   const day = (iso, date) => {
     const tasks = topLevel.filter(t => t.type === 'task' && t.dueDate === iso)
@@ -1970,8 +1970,26 @@ function collectWidgetData() {
   };
   return { today: day(todayISO, new Date()), tomorrow: day(tomorrowISO, tm) };
 }
+// The list of widget windows known to the main process (id + bound instance).
+let widgetList = [];
 function pushWidgetData() {
-  if (window.butime && window.butime.sendWidgetData) window.butime.sendWidgetData(collectWidgetData());
+  if (!window.butime || !window.butime.sendWidgetData) return;
+  const instances = getInstances();
+  const activeId = getActiveInstanceId();
+  const used = new Set();
+  widgetList.forEach(w => { if (w.instanceId) used.add(w.instanceId); });
+  used.add(activeId); // the main widget already shows the active instance
+  widgetList.forEach(w => {
+    const instId = w.instanceId || activeId;
+    const inst = instances.find(i => i.id === instId);
+    window.butime.sendWidgetData({
+      id: w.id,
+      isMain: w.id === 'w1',
+      instanceName: inst ? inst.name : '—',
+      availableInstances: instances.filter(i => !used.has(i.id)).map(i => ({ id: i.id, name: i.name })),
+      data: collectWidgetData(instId),
+    });
+  });
 }
 
 // ---- Widget toggle: the header button reflects whether the widget is open ----
@@ -1983,6 +2001,9 @@ function setWidgetButton(visible) {
 }
 function widgetToggle() {
   widgetVisible = !widgetVisible;
+  const s = getSettings();
+  s.widgetEnabled = widgetVisible;
+  saveSettings(s);
   if (window.butime && window.butime.toggleWidget) window.butime.toggleWidget(widgetVisible);
   setWidgetButton(widgetVisible);
 }
@@ -2408,15 +2429,38 @@ if (window.butime && window.butime.setAutoStart) {
   const s = getSettings();
   window.butime.setAutoStart(!!s.autostart);
 }
-// Desktop widget: show it on startup if enabled, keep it fresh, and sync the header toggle.
-if (window.butime && window.butime.toggleWidget) {
-  const s = getSettings();
-  window.butime.toggleWidget(!!s.widgetEnabled);
+// Desktop widget: learn which widgets exist, show them per their saved state, and
+// keep them fresh. The main widget follows the setting; added ones always show.
+if (window.butime && window.butime.onWidgetList) {
+  window.butime.onWidgetList((list) => {
+    widgetList = list || [];
+    const s = getSettings();
+    if (window.butime.widgetShow) {
+      widgetList.forEach(w => {
+        if (w.id === 'w1') window.butime.toggleWidget(!!s.widgetEnabled);
+        else window.butime.widgetShow(w.id);
+      });
+    }
+    pushWidgetData();
+  });
+}
+if (window.butime && window.butime.onWidgetRefresh) {
+  window.butime.onWidgetRefresh(() => pushWidgetData());
+}
+// The main widget was closed via its X — persist that it stays closed.
+if (window.butime && window.butime.onWidgetClosed) {
+  window.butime.onWidgetClosed(() => {
+    const s = getSettings();
+    s.widgetEnabled = false;
+    saveSettings(s);
+    setWidgetButton(false);
+  });
 }
 if (window.butime && window.butime.onWidgetVisibility) {
   window.butime.onWidgetVisibility((v) => setWidgetButton(v));
 }
 setWidgetButton(!!getSettings().widgetEnabled);
 document.getElementById('widgetToggleBtn').addEventListener('click', widgetToggle);
+if (window.butime && window.butime.widgetReady) window.butime.widgetReady();
 pushWidgetData();
 setInterval(pushWidgetData, 60000);

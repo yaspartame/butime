@@ -52,6 +52,55 @@
       padding: 2px 4px;
     }
     .wd-close:hover { color: #e0535a; }
+    .wd-head-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .wd-add-wrap {
+      position: relative;
+    }
+    .wd-add {
+      -webkit-app-region: no-drag;
+      background: none;
+      border: none;
+      color: #5a6380;
+      cursor: pointer;
+      font-size: 15px;
+      line-height: 1;
+      padding: 0 4px;
+    }
+    .wd-add:hover { color: #aab2c6; }
+    .wd-add-menu {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      min-width: 150px;
+      max-height: 220px;
+      overflow-y: auto;
+      background: #151821;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      padding: 4px;
+      display: none;
+      z-index: 20;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+    .wd-add-menu.open { display: block; }
+    .wd-inst {
+      -webkit-app-region: no-drag;
+      padding: 6px 8px;
+      font-size: 11px;
+      color: #c8cdd8;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .wd-inst:hover { background: #222940; color: #fff; }
+    .wd-inst-empty { color: #5a6380; cursor: default; }
+    .wd-inst-empty:hover { background: none; color: #5a6380; }
     .wd-day {
       flex: 1;
       min-height: 0;
@@ -137,8 +186,14 @@
 <body>
   <div class="wd">
     <div class="wd-head">
-      <span class="wd-title">TODAY &amp; TOMORROW</span>
-      <button class="wd-close" id="wdClose" title="Hide widget">✕</button>
+      <span class="wd-title" id="wdTitle">TODAY &amp; TOMORROW</span>
+      <div class="wd-head-right">
+        <div class="wd-add-wrap" id="wdAddWrap">
+          <button class="wd-add" id="wdAdd" title="Add another instance">+</button>
+          <div class="wd-add-menu" id="wdAddMenu"></div>
+        </div>
+        <button class="wd-close" id="wdClose" title="Hide widget">✕</button>
+      </div>
     </div>
     <div class="wd-day">
       <div class="wd-day-label"><span>TODAY</span><span class="wd-sub" id="wdTodaySub"></span></div>
