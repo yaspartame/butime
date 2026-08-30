@@ -79,11 +79,23 @@
       padding: 2px;
     }
     .ov-close:hover { color: #e0535a; }
+    .ov-grip {
+      -webkit-app-region: no-drag;
+      position: absolute;
+      top: 6px;
+      left: 8px;
+      color: #4a5268;
+      font-size: 12px;
+      line-height: 1;
+      cursor: grab;
+    }
+    .ov-grip:hover { color: #8b93a7; }
   </style>
 </head>
 <body>
   <div class="ov">
     <button class="ov-close" id="ovClose" title="Hide overlay">✕</button>
+    <span class="ov-grip" title="Drag to move">⠿</span>
     <div class="ov-mode" id="ovMode">FOCUS</div>
     <div class="ov-time" id="ovTime">25:00</div>
     <div class="ov-progress" id="ovProgress"></div>

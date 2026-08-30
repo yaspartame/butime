@@ -96,8 +96,6 @@ function buildViewDropdown() {
 }
 viewDropdown.addEventListener('click', (e) => { const opt = e.target.closest('.view-option'); if (!opt) return; switchView(opt.dataset.view); });
 
-viewDropdown.addEventListener('click', (e) => { const opt = e.target.closest('.view-option'); if (!opt) return; switchView(opt.dataset.view); });
-
 function normalizeView() {
   const cv = state.currentView;
   if (cv === 'settings' || cv === 'pomodoro') return;
@@ -192,13 +190,17 @@ document.getElementById('sidebarSettingsBtn').addEventListener('click', openSett
 function openInstanceEditModal(id) { const inst = getInstances().find(i => i.id === id); if (!inst) return; state.editingInstanceId = id; document.getElementById('instanceName').value = inst.name; document.getElementById('instanceDeleteBtn').style.display = 'block'; document.getElementById('instanceModalTitle').textContent = 'EDIT INSTANCE'; openModalById('instanceModalOverlay'); }
 document.getElementById('instanceModalSave').addEventListener('click', () => { const name = document.getElementById('instanceName').value.trim(); if (!name) { shakeBtn(document.getElementById('instanceModalSave')); return; } let instances = getInstances(); if (state.editingInstanceId) { const idx = instances.findIndex(i => i.id === state.editingInstanceId); if (idx !== -1) instances[idx] = { ...instances[idx], name }; } else { const newId = genId(); instances.push({ id: newId, name }); saveInstanceData(newId, { categories: [{ id: genId(), name: 'Task', color: '#6b7db3' }], events: [], todos: [] }); } saveInstances(instances); closeModalById('instanceModalOverlay'); renderSidebar(); });
 document.getElementById('instanceDeleteBtn').addEventListener('click', () => {
-  if (!state.editingInstanceId || !confirm('Delete this instance and all its data?')) return;
-  let instances = getInstances(); const activeId = getActiveInstanceId();
-  instances = instances.filter(i => i.id !== state.editingInstanceId);
-  localStorage.removeItem('butime_data_' + state.editingInstanceId);
-  if (instances.length === 0) { const newId = genId(); instances.push({ id: newId, name: 'Default' }); saveInstanceData(newId, { categories: [{ id: genId(), name: 'Task', color: '#6b7db3' }], events: [], todos: [] }); }
-  if (activeId === state.editingInstanceId) setActiveInstanceId(instances[0].id);
-  saveInstances(instances); closeModalById('instanceModalOverlay'); renderSidebar(); rerenderCurrentView(); updateAlertBadge();
+  const delId = state.editingInstanceId;
+  if (!delId) return;
+  uiConfirm('Delete this instance and all its data?', () => {
+    let instances = getInstances(); const activeId = getActiveInstanceId();
+    instances = instances.filter(i => i.id !== delId);
+    localStorage.removeItem('butime_data_' + delId);
+    if (instances.length === 0) { const newId = genId(); instances.push({ id: newId, name: 'Default' }); saveInstanceData(newId, { categories: [{ id: genId(), name: 'Task', color: '#6b7db3' }], events: [], todos: [] }); }
+    if (activeId === delId) setActiveInstanceId(instances[0].id);
+    saveInstances(instances); closeModalById('instanceModalOverlay'); renderSidebar(); rerenderCurrentView(); updateAlertBadge();
+    if (window.butime && window.butime.widgetRemoveInstance) window.butime.widgetRemoveInstance(delId);
+  });
 });
 document.getElementById('instanceModalClose').addEventListener('click', () => closeModalById('instanceModalOverlay'));
 document.getElementById('instanceModalCancel').addEventListener('click', () => closeModalById('instanceModalOverlay'));
@@ -232,8 +234,13 @@ document.querySelectorAll('#closeActionSelector .mode-option').forEach(o => o.ad
   o.classList.add('active');
 }));
 
-document.getElementById('settingsExportBtn').addEventListener('click', () => {
-  const json = exportAllData();
+document.getElementById('settingsExportBtn').addEventListener('click', async () => {
+  const payload = JSON.parse(exportAllData());
+  // Include the desktop widget setup (main-process config) so it backs up too.
+  if (window.butime && window.butime.widgetGetConfig) {
+    try { payload.widgetConfig = await window.butime.widgetGetConfig(); } catch (_) {}
+  }
+  const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -250,19 +257,27 @@ document.getElementById('settingsImportBtn').addEventListener('click', () => {
 document.getElementById('settingsImportFile').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    try {
-      importAllData(ev.target.result);
-      state.mode = getMode();
-      state.bbuView = getBbuView();
-      renderSidebar();
-      applyModeUI();
-    } catch (err) {
-      alert('Import failed: ' + err.message);
-    }
-  };
-  reader.readAsText(file);
+  uiConfirm('Importing will REPLACE all current data with the backup. Continue?', () => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const json = ev.target.result;
+        importAllData(json);
+        // Restore the desktop widget setup if the backup included it.
+        try {
+          const payload = JSON.parse(json);
+          if (window.butime && window.butime.widgetSetConfig && payload.widgetConfig) window.butime.widgetSetConfig(payload.widgetConfig);
+        } catch (_) {}
+        state.mode = getMode();
+        state.bbuView = getBbuView();
+        renderSidebar();
+        applyModeUI();
+      } catch (err) {
+        uiAlert('Import failed: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  });
   // Reset so the same file can be re-imported
   e.target.value = '';
 });
@@ -335,7 +350,16 @@ document.getElementById('linkedTodoRemove').addEventListener('click', (e) => { e
 document.getElementById('addCategoryBtn').addEventListener('click', () => { state.editingCategoryId = null; document.getElementById('catName').value = ''; document.getElementById('catColor').value = '#6b7db3'; document.getElementById('catColorHex').textContent = '#6b7db3'; document.getElementById('catDeleteBtn').style.display = 'none'; document.querySelector('#catModal .modal-title').textContent = 'NEW CATEGORY'; openModalById('catModalOverlay'); });
 document.getElementById('catColor').addEventListener('input', function() { document.getElementById('catColorHex').textContent = this.value; });
 document.getElementById('catModalSave').addEventListener('click', () => { const name = document.getElementById('catName').value.trim(), color = document.getElementById('catColor').value; if (!name) { shakeBtn(document.getElementById('catModalSave')); return; } let cats = getCategories(); if (state.editingCategoryId) { const idx = cats.findIndex(c => c.id === state.editingCategoryId); if (idx !== -1) cats[idx] = { ...cats[idx], name, color }; } else cats.push({ id: genId(), name, color }); saveCategories(cats); closeModalById('catModalOverlay'); renderCategorySelector(); });
-document.getElementById('catDeleteBtn').addEventListener('click', () => { if (!state.editingCategoryId || !confirm('Delete this category?')) return; saveCategories(getCategories().filter(c => c.id !== state.editingCategoryId)); closeModalById('catModalOverlay'); if (state.selectedCategoryId === state.editingCategoryId) state.selectedCategoryId = null; renderCategorySelector(); });
+document.getElementById('catDeleteBtn').addEventListener('click', () => {
+  const delId = state.editingCategoryId;
+  if (!delId) return;
+  uiConfirm('Delete this category?', () => {
+    saveCategories(getCategories().filter(c => c.id !== delId));
+    closeModalById('catModalOverlay');
+    if (state.selectedCategoryId === delId) state.selectedCategoryId = null;
+    renderCategorySelector();
+  });
+});
 function openCatEditModal(id) { const cat = getCategories().find(c => c.id === id); if (!cat) return; state.editingCategoryId = id; document.getElementById('catName').value = cat.name; document.getElementById('catColor').value = cat.color; document.getElementById('catColorHex').textContent = cat.color; document.getElementById('catDeleteBtn').style.display = 'block'; document.querySelector('#catModal .modal-title').textContent = 'EDIT CATEGORY'; openModalById('catModalOverlay'); }
 document.getElementById('catModalClose').addEventListener('click', () => closeModalById('catModalOverlay'));
 document.getElementById('catModalCancel').addEventListener('click', () => closeModalById('catModalOverlay'));
@@ -351,7 +375,15 @@ document.getElementById('modalSave').addEventListener('click', () => {
   else events.push({ id: genId(), title: title||'Untitled', day, startTime, endTime, categoryId: state.selectedCategoryId, date: eventDate, linkedTodoId: state.linkedTodoId, createdAt: new Date().toISOString() });
   saveEvents(events); closeModalById('modalOverlay'); render();
 });
-document.getElementById('deleteBtn').addEventListener('click', () => { if (!state.editingId || !confirm('Delete this entry?')) return; saveEvents(getEvents().filter(e => e.id !== state.editingId)); closeModalById('modalOverlay'); render(); });
+document.getElementById('deleteBtn').addEventListener('click', () => {
+  const delId = state.editingId;
+  if (!delId) return;
+  uiConfirm('Delete this entry?', () => {
+    saveEvents(getEvents().filter(e => e.id !== delId));
+    closeModalById('modalOverlay');
+    render();
+  });
+});
 document.getElementById('entryStart').addEventListener('change', () => { if (document.getElementById('entryStart').value && !document.getElementById('entryEnd').value) { const [h,m] = document.getElementById('entryStart').value.split(':').map(Number); document.getElementById('entryEnd').value = `${String(h+1).padStart(2,'0')}:${String(m).padStart(2,'0')}`; } });
 document.getElementById('modalClose').addEventListener('click', () => closeModalById('modalOverlay'));
 document.getElementById('modalCancel').addEventListener('click', () => closeModalById('modalOverlay'));
@@ -369,8 +401,14 @@ function renderTodoList() {
     h.innerHTML = `${DAY_LABELS[i]} ${formatDateNice(day)}${dayTodos.length ? ` (${dayTodos.length})` : ''}`; g.appendChild(h);
     dayTodos.sort((a,b) => { const sa = getTodoStatus(a), sb = getTodoStatus(b); if (sa.near && !sb.near) return -1; if (!sa.near && sb.near) return 1; return (a.deadline||'').localeCompare(b.deadline||''); });
     dayTodos.forEach(t => g.appendChild(createTodoElement(t)));
-    if (i === 0) { const nd = todos.filter(t => !t.deadline); if (nd.length > 0) { const nh = document.createElement('div'); nh.className = 'todo-day-header'; nh.style.opacity = '0.5'; nh.textContent = 'NO DEADLINE'; g.appendChild(nh); nd.forEach(t => g.appendChild(createTodoElement(t))); } }
     container.appendChild(g);
+  }
+  // Todos without a deadline get their own section, not tied to a day.
+  const noDeadline = todos.filter(t => !t.deadline);
+  if (noDeadline.length > 0) {
+    const g = document.createElement('div'); g.className = 'todo-day-group';
+    const h = document.createElement('div'); h.className = 'todo-day-header'; h.style.opacity = '0.5'; h.textContent = 'NO DEADLINE';
+    g.appendChild(h); noDeadline.forEach(t => g.appendChild(createTodoElement(t))); container.appendChild(g);
   }
 }
 function createTodoElement(todo) { const el = document.createElement('div'); el.className = 'todo-item'; if (todo.completed) el.classList.add('completed'); const st = getTodoStatus(todo); if (st.near && !todo.completed) el.classList.add('urgent-warning'); el.innerHTML = `<div class="todo-check ${todo.completed?'checked':''}" data-todoid="${todo.id}"></div><div class="todo-info"><span class="todo-name">${esc(todo.name)}</span>${todo.deadline ? `<span class="todo-deadline">${new Date(todo.deadline).toLocaleString()}</span>` : '<span class="todo-deadline">no deadline</span>'}</div><div class="todo-dot" style="background:${st.color}"></div>`; el.querySelector('.todo-check').addEventListener('click', (e) => { e.stopPropagation(); toggleTodoComplete(todo.id); }); el.addEventListener('click', () => openTodoEditModal(todo.id)); return el; }
@@ -382,14 +420,48 @@ function setSelectedTodoType(type) { state.selectedTodoType = type; document.que
 function updateTodoNearField() { const s = getSettings(); document.getElementById('todoNearGroup').style.display = (s.perTodoUrgency && (state.selectedTodoType === 'immediate' || state.selectedTodoType === 'scheduled')) ? '' : 'none'; }
 document.querySelectorAll('.todo-type-option').forEach(opt => { opt.addEventListener('click', () => setSelectedTodoType(opt.dataset.value)); opt.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedTodoType(opt.dataset.value); } }); });
 document.getElementById('todoModalSave').addEventListener('click', () => { const name = document.getElementById('todoName').value.trim(), deadline = document.getElementById('todoDeadline').value||null, type = state.selectedTodoType; const s = getSettings(); let nearThreshold = null; if (s.perTodoUrgency && (type === 'immediate' || type === 'scheduled')) { const v = document.getElementById('todoNearThreshold').value; if (v) nearThreshold = parseInt(v,10); } if (!name) { shakeBtn(document.getElementById('todoModalSave')); return; } let todos = getTodos(); if (state.editingTodoId) { const idx = todos.findIndex(x => x.id === state.editingTodoId); if (idx !== -1) todos[idx] = { ...todos[idx], name, deadline: deadline ? deadline+':00' : null, type, nearThreshold }; } else todos.push({ id: genId(), name, deadline: deadline ? deadline+':00' : null, type, nearThreshold, completed: false, createdAt: new Date().toISOString() }); saveTodos(todos); closeModalById('todoModalOverlay'); renderTodoList(); updateAlertBadge(); });
-document.getElementById('todoDeleteBtn').addEventListener('click', () => { if (!state.editingTodoId || !confirm('Delete this todo?')) return; saveTodos(getTodos().filter(x => x.id !== state.editingTodoId)); closeModalById('todoModalOverlay'); renderTodoList(); updateAlertBadge(); });
+document.getElementById('todoDeleteBtn').addEventListener('click', () => {
+  const delId = state.editingTodoId;
+  if (!delId) return;
+  uiConfirm('Delete this todo?', () => {
+    saveTodos(getTodos().filter(x => x.id !== delId));
+    closeModalById('todoModalOverlay');
+    renderTodoList();
+    updateAlertBadge();
+  });
+});
 document.getElementById('todoModalClose').addEventListener('click', () => closeModalById('todoModalOverlay'));
 document.getElementById('todoModalCancel').addEventListener('click', () => closeModalById('todoModalOverlay'));
 
 function openModalById(id) { document.getElementById(id).classList.add('active'); }
 function closeModalById(id) { document.getElementById(id).classList.remove('active'); }
-['modalOverlay','catModalOverlay','linkModalOverlay','todoModalOverlay','instanceModalOverlay','bbuModalOverlay','bbuColorOverlay','modeModalOverlay','pomoSettingsOverlay'].forEach(id => { document.getElementById(id).addEventListener('click', (e) => { if (e.target === document.getElementById(id)) closeModalById(id); }); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeBbuMenu(); closePomoSettings(); ['modalOverlay','catModalOverlay','linkModalOverlay','todoModalOverlay','instanceModalOverlay','bbuModalOverlay','bbuColorOverlay','modeModalOverlay','pomoSettingsOverlay'].forEach(id => { if (document.getElementById(id).classList.contains('active')) closeModalById(id); }); } });
+['modalOverlay','catModalOverlay','linkModalOverlay','todoModalOverlay','instanceModalOverlay','bbuModalOverlay','bbuColorOverlay','modeModalOverlay','pomoSettingsOverlay','confirmOverlay'].forEach(id => { document.getElementById(id).addEventListener('click', (e) => { if (e.target === document.getElementById(id)) closeModalById(id); }); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeBbuMenu(); closePomoSettings(); ['modalOverlay','catModalOverlay','linkModalOverlay','todoModalOverlay','instanceModalOverlay','bbuModalOverlay','bbuColorOverlay','modeModalOverlay','pomoSettingsOverlay','confirmOverlay'].forEach(id => { if (document.getElementById(id).classList.contains('active')) closeModalById(id); }); } });
+
+// ---- Custom confirm / alert (replaces the native confirm()/alert() dialogs) ----
+let uiConfirmCallback = null;
+function uiConfirm(message, onOk) {
+  document.getElementById('confirmText').textContent = message;
+  document.getElementById('confirmCancelBtn').style.display = '';
+  uiConfirmCallback = onOk || null;
+  openModalById('confirmOverlay');
+}
+function uiAlert(message) {
+  document.getElementById('confirmText').textContent = message;
+  document.getElementById('confirmCancelBtn').style.display = 'none';
+  uiConfirmCallback = null;
+  openModalById('confirmOverlay');
+}
+function closeUiConfirm() {
+  closeModalById('confirmOverlay');
+  uiConfirmCallback = null;
+}
+document.getElementById('confirmOkBtn').addEventListener('click', () => {
+  closeModalById('confirmOverlay');
+  const cb = uiConfirmCallback; uiConfirmCallback = null;
+  if (cb) cb();
+});
+document.getElementById('confirmCancelBtn').addEventListener('click', closeUiConfirm);
 
 // Electron: after alt-tabbing back into the app, Chromium sometimes keeps the
 // focused field from receiving keystrokes (the "have to tab out again" bug).
@@ -1102,7 +1174,7 @@ function renderBbuList() {
   const topLevel = all.filter(t => !t.parentId);
   wrap.innerHTML = '';
 
-  // --- Tasks: a flat list sorted like the matrix (by quadrant), colour coded ---
+
   const qOrder = { q1: 0, q2: 1, q3: 2, q4: 3 };
   const tasks = topLevel.filter(t => t.type !== 'event' && t.type !== 'todo' && !t.completed && !t.wontDo)
     .sort((a, b) => (qOrder[bbuQuadrantOf(a).id] - qOrder[bbuQuadrantOf(b).id]) || bbuSortTasks(a, b));
@@ -1110,7 +1182,20 @@ function renderBbuList() {
   tTitle.className = 'bbu-list-title';
   tTitle.textContent = tasks.length ? `ALL TASKS (${tasks.length})` : 'ALL TASKS';
   wrap.appendChild(tTitle);
-  if (tasks.length) bbuRenderTree(wrap, all, tasks, {});
+  if (tasks.length) {
+    let lastQ = null;
+    tasks.forEach(t => {
+      const q = bbuQuadrantOf(t);
+      if (q.id !== lastQ) {
+        const lab = document.createElement('div');
+        lab.className = 'bbu-quad-group-label';
+        lab.textContent = q.title;
+        wrap.appendChild(lab);
+        lastQ = q.id;
+      }
+      bbuRenderTree(wrap, all, [t], {});
+    });
+  }
 
   // --- To-Do: a plain list (no dates, no flags, no colours), always with a + add button ---
   const todos = topLevel.filter(t => t.type === 'todo' && !t.completed && !t.wontDo).slice().sort(bbuSortTasks);
@@ -1775,10 +1860,12 @@ function bbuDuplicate(taskId) {
 function bbuDeleteTask(taskId) {
   const tasks = getBbuTasks();
   const kids = bbuDescendants(tasks, taskId).length;
-  if (!confirm('Delete this task' + (kids ? ' and its ' + kids + ' subtask' + (kids > 1 ? 's' : '') : '') + '?')) return;
-  const ids = new Set([taskId, ...bbuDescendants(tasks, taskId).map(t => t.id)]);
-  saveBbuTasks(tasks.filter(t => !ids.has(t.id)));
-  renderBbu();
+  uiConfirm('Delete this task' + (kids ? ' and its ' + kids + ' subtask' + (kids > 1 ? 's' : '') : '') + '?', () => {
+    const all = getBbuTasks();
+    const ids = new Set([taskId, ...bbuDescendants(all, taskId).map(t => t.id)]);
+    saveBbuTasks(all.filter(t => !ids.has(t.id)));
+    renderBbu();
+  });
 }
 
 function openBbuContextMenu(e, taskId) {

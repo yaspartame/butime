@@ -101,6 +101,14 @@
     .wd-inst:hover { background: #222940; color: #fff; }
     .wd-inst-empty { color: #5a6380; cursor: default; }
     .wd-inst-empty:hover { background: none; color: #5a6380; }
+    .wd-grip {
+      color: #4a5268;
+      font-size: 12px;
+      line-height: 1;
+      cursor: grab;
+      flex-shrink: 0;
+    }
+    .wd-grip:hover { color: #8b93a7; }
     .wd-day {
       flex: 1;
       min-height: 0;
@@ -186,6 +194,7 @@
 <body>
   <div class="wd">
     <div class="wd-head">
+      <span class="wd-grip" title="Drag to move">⠿</span>
       <span class="wd-title" id="wdTitle">TODAY &amp; TOMORROW</span>
       <div class="wd-head-right">
         <div class="wd-add-wrap" id="wdAddWrap">

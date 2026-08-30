@@ -2460,6 +2460,28 @@ input[type="time"].form-input {
   color: var(--text-primary);
 }
 
+/* Small quadrant label separating task groups in the LIST view (readable, colour-blind friendly) */
+.bbu-quad-group-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin: 12px 0 4px;
+}
+.bbu-quad-group-label:first-child {
+  margin-top: 0;
+}
+
+/* Custom confirm / alert modal text */
+.confirm-text {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.5;
+  margin: 2px 0 4px;
+  white-space: pre-line;
+}
+
 /* Subtle but telling colour coding: each row gets a left accent in its own colour */
 .bbu-list .bbu-task {
   border-left: 3px solid var(--tc, var(--accent));

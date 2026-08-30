@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Menu, ipcMain, screen, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, shell, Menu, ipcMain, screen, Tray, nativeImage, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -8,6 +8,10 @@ let mainWin = null;
 let tray = null;
 let isQuitting = false;
 let closeAction = 'minimize'; //hi
+
+// First-time-only hint when the window hides to the tray.
+const trayHintFile = () => path.join(app.getPath('userData'), 'tray-hint-shown');
+let trayHintShown = (() => { try { return fs.existsSync(trayHintFile()); } catch (_) { return false; } })();
 
 // Widget config persistence: which widgets exist, which instance each shows, and
 // each widget's size/position — survives restarts, including a full close.
@@ -76,6 +80,12 @@ function createWindow() {
     if (!isQuitting && closeAction === 'minimize') {
       e.preventDefault();
       win.hide();
+      // First time only: tell the user the app is still running in the tray.
+      if (!trayHintShown) {
+        trayHintShown = true;
+        try { fs.writeFileSync(trayHintFile(), '1'); } catch (_) {}
+        try { if (Notification.isSupported()) new Notification({ title: 'butime', body: 'Still running — look for the butime icon in the system tray.' }).show(); } catch (_) {}
+      }
     }
   });
   win.on('closed', () => {
@@ -278,6 +288,28 @@ ipcMain.on('widget:getdata', (_e, id) => {
 });
 // The app window is ready — tell it which widgets exist.
 ipcMain.on('widget:ready', () => broadcastWidgetList());
+// Remove any widgets bound to a deleted instance.
+ipcMain.on('widget:remove-instance', (_e, instanceId) => {
+  if (!instanceId) return;
+  const removed = widgets.filter(w => w.id !== 'w1' && w.instanceId === instanceId);
+  removed.forEach(w => { if (w.win && !w.win.isDestroyed()) w.win.destroy(); });
+  widgets = widgets.filter(w => w.id === 'w1' || w.instanceId !== instanceId);
+  widgetCfg.widgets = widgets.map(w => ({ id: w.id, instanceId: w.instanceId }));
+  persistWidgetConfig();
+  broadcastWidgetList();
+});
+// Export: give the app the widget config so it can be backed up.
+ipcMain.handle('widget:get-config', () => widgetCfg);
+// Import: apply a backed-up widget config (rebuilds the widget windows).
+ipcMain.on('widget:set-config', (_e, cfg) => {
+  if (!cfg || !Array.isArray(cfg.widgets)) return;
+  widgetCfg = { widgets: cfg.widgets, bounds: cfg.bounds || {} };
+  persistWidgetConfig();
+  widgets.forEach(w => { if (w.win && !w.win.isDestroyed()) w.win.destroy(); });
+  widgets = [];
+  widgetCfg.widgets.forEach(w => { if (w && w.id) widgets.push(createWidgetWindow(w.id, w.instanceId || null)); });
+  broadcastWidgetList();
+});
 function broadcastWidgetList() {
   if (mainWin && !mainWin.isDestroyed()) {
     mainWin.webContents.send('widget:list', widgets.map(w => ({ id: w.id, instanceId: w.instanceId, isMain: w.id === 'w1' })));
