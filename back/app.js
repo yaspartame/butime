@@ -1940,7 +1940,11 @@ function collectWidgetData() {
       .slice().sort((a, b) => (bbuTimeToMin(a.time) || 1440) - (bbuTimeToMin(b.time) || 1440) || a.name.localeCompare(b.name))
       .map(t => ({ name: t.name, color: bbuColorOf(t), time: t.time ? bbuTimeOf(t.time) : '' }));
     const events = topLevel.filter(t => t.type === 'event' && t.dueDate === iso)
-      .slice().sort((a, b) => (bbuTimeToMin(a.time) || 1440) - (bbuTimeToMin(b.time) || 1440) || a.name.localeCompare(b.name))
+      .slice().sort((a, b) => {
+        const ca = bbuColorOf(a), cb = bbuColorOf(b);
+        if (ca !== cb) return ca < cb ? -1 : 1;
+        return (bbuTimeToMin(a.time) || 1440) - (bbuTimeToMin(b.time) || 1440) || a.name.localeCompare(b.name);
+      })
       .map(t => ({ name: t.name, color: bbuColorOf(t), time: bbuTimeOf(t.time) }));
     const label = `${DAY_SHORT[(date.getDay() + 6) % 7]} ${date.getDate()} ${MONTH_SHORT[date.getMonth()]}`;
     return { label, tasks, events };
