@@ -1119,8 +1119,11 @@ function renderBbuList() {
   // --- Events: own section, colour coded, sorted by colour, with start–end time ---
   const events = topLevel.filter(t => t.type === 'event' && !t.completed && !t.wontDo)
     .sort((a, b) => {
+      // Colour → date → time.
       const ca = bbuColorOf(a), cb = bbuColorOf(b);
       if (ca !== cb) return ca < cb ? -1 : 1;
+      const da = a.dueDate || '', db = b.dueDate || '';
+      if (da !== db) return da < db ? -1 : 1;
       return bbuTimeToMin(a.time) - bbuTimeToMin(b.time);
     });
   if (events.length) {
@@ -1943,6 +1946,8 @@ function collectWidgetData() {
       .slice().sort((a, b) => {
         const ca = bbuColorOf(a), cb = bbuColorOf(b);
         if (ca !== cb) return ca < cb ? -1 : 1;
+        const da = a.dueDate || '', db = b.dueDate || '';
+        if (da !== db) return da < db ? -1 : 1;
         return (bbuTimeToMin(a.time) || 1440) - (bbuTimeToMin(b.time) || 1440) || a.name.localeCompare(b.name);
       })
       .map(t => ({ name: t.name, color: bbuColorOf(t), time: bbuTimeOf(t.time) }));
