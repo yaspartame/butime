@@ -84,7 +84,7 @@ function createWindow() {
       if (!trayHintShown) {
         trayHintShown = true;
         try { fs.writeFileSync(trayHintFile(), '1'); } catch (_) {}
-        try { if (Notification.isSupported()) new Notification({ title: 'butime', body: 'Still running — look for the butime icon in the system tray.' }).show(); } catch (_) {}
+        try { if (Notification.isSupported()) new Notification({ title: 'butime', body: 'Still running: butime is in system tray.' }).show(); } catch (_) {}
       }
     }
   });
