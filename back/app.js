@@ -146,6 +146,7 @@ function applyModeUI() {
   document.getElementById('settingsLegacySections').style.display = (bbu || !inSettings) ? 'none' : '';
   document.querySelectorAll('#modeSelector .mode-option').forEach(o => o.classList.toggle('active', o.dataset.mode === state.mode));
   updateAlertBadge();
+  updatePomoSidebarVisibility();
   if (inSettings) return;
   if (cv === 'pomodoro') { renderPomodoro(); return; }
   if (cv === 'matrix' || cv === 'calendar' || cv === 'list') renderBbu();
@@ -2398,6 +2399,7 @@ function renderPomodoro() {
       title: pomoState.title || '',
     });
   }
+  updatePomoSidebarVisibility();
 }
 
 function pomoSettingsHTML() {
@@ -2461,12 +2463,22 @@ function closePomoSettings() {
   document.getElementById('pomoSettingsInline').style.display = 'none';
   document.getElementById('pomoSettingsOverlay').classList.remove('active');
 }
+// Show the pomodoro in the sidebar whenever it's actively running and the user
+// is not on the pomodoro view — so they always get timer feedback elsewhere.
+function updatePomoSidebarVisibility() {
+  const loc = getPomoSettings().location || 'view';
+  const active = pomoState.running || pomoState.done;
+  const onPomoView = state.currentView === 'pomodoro';
+  const show = (loc === 'sidebar') || (active && !onPomoView);
+  const el = document.getElementById('sidebarPomodoro');
+  if (el) el.style.display = show ? '' : 'none';
+}
 function applyPomoLocation() {
   const loc = getPomoSettings().location || 'view';
-  document.getElementById('sidebarPomodoro').style.display = loc === 'sidebar' ? '' : 'none';
   if (state.currentView === 'pomodoro' && loc === 'sidebar') state.currentView = state.mode === 'bbu' ? 'matrix' : 'timetable';
   buildViewDropdown();
   applyModeUI();
+  updatePomoSidebarVisibility();
 }
 function pomoToggleOverlay() {
   const s = getPomoSettings();
