@@ -175,7 +175,7 @@ function exportAllData() {
     bbuInstancesCategories[inst.id] = getBbuCategoriesForInstance(inst.id);
   });
   const payload = {
-    butime: '1.2',
+    butime: '2.0.0',
     exportedAt: new Date().toISOString(),
     settings: getSettings(),
     activeInstanceId: getActiveInstanceId(),
