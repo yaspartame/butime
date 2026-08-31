@@ -3,8 +3,8 @@
 butime is an offline time-management desktop app built with Electron; I made this application for my special and important person. It combines an Eisenhower matrix, a month and week calendar, a task list, to-do items, and a Pomodoro timer in one local, dependency-free application. All data is stored locally.
 
 > [!NOTE]
-> AI-Assisted Side project
-> Parts of this project, especially the front end were developed with an assistance of AI tools. AI was mainly used as development aid/search engine for ideas, automation on tests(insertion of JSON data), automation of documentation(MDs), and suggestions. The code, markdowns, and design were still reviewed, tested manually, and implemented by me.
+> AI-Assisted side project
+>: Parts of this project, especially the front end were developed with an assistance of AI tools. AI was mainly used as development aid/search engine for ideas, automation on tests(insertion of JSON data), automation of documentation(MDs), and suggestions. The code, markdowns, and design were still reviewed, tested manually, and implemented by me.
 
 ## Screenshots
 
