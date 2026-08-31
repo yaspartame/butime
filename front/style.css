@@ -3665,7 +3665,7 @@ input[type="time"].form-input {
   position: absolute;
   left: 5px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-muted);
   line-height: 1;
   white-space: nowrap;
@@ -3781,6 +3781,29 @@ input[type="time"].form-input {
 
 .bbu-cal-event .bbu-subtasks {
   display: none;
+}
+
+/* Overnight events span two days — small chip marks the continuing block */
+.bbu-cal-event-spill-night::after,
+.bbu-cal-event-spill-morning::before {
+  content: attr(data-spill);
+  position: absolute;
+  right: 3px;
+  font-size: 9px;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--tc, var(--accent)) 32%, rgba(0, 0, 0, 0.55));
+  color: #fff;
+  opacity: 0.95;
+  pointer-events: none;
+  z-index: 1;
+}
+.bbu-cal-event-spill-night::after {
+  bottom: 2px;
+}
+.bbu-cal-event-spill-morning::before {
+  top: 2px;
 }
 
 /* Drag-to-create event feedback (week view) */

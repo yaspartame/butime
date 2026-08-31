@@ -412,7 +412,11 @@ function bbuTimeOf(time) {
 function bbuTimeLabel(t) {
   if (!t || !t.time) return '';
   const start = bbuTimeOf(t.time);
-  if (t.type === 'event' && t.endTime) return `${start} – ${bbuTimeOf(t.endTime)}`;
+  if (t.type === 'event' && t.endTime) {
+    const end = bbuTimeOf(t.endTime);
+    const overnight = bbuTimeToMin(t.endTime) <= bbuTimeToMin(t.time);
+    return overnight ? `${start} – ${end} (next day)` : `${start} – ${end}`;
+  }
   return start;
 }
 function bbuTimeToMin(t) {
@@ -539,14 +543,10 @@ function renderBbuCalWeek() {
   // Visible hour window — defaults to 6 AM – 11 PM like a Google Calendar
   // zoomed week, but auto-extends when a task's time falls outside it so
   // nothing gets hidden.
-  let startHour = 6, endHour = 24;
-  tasks.forEach(t => {
-    if (!t.time) return;
-    const h = parseInt(t.time, 10);
-    if (isNaN(h)) return;
-    if (h < startHour) startHour = Math.max(0, h);
-    if (h + 1 > endHour) endHour = Math.min(24, h + 1);
-  });
+  // The grid always spans the full day: 12 AM (00:00) through 11 PM (23:59).
+  // No clamping or capping — every timed item fits, including overnight events
+  // that end in the small hours of the next morning.
+  let startHour = 0, endHour = 24;
   const hours = [];
   for (let h = startHour; h < endHour; h++) hours.push(h);
 
@@ -626,9 +626,32 @@ function renderBbuCalWeek() {
   }
   body.appendChild(gutter);
 
+  // ---- Timed segments keyed by calendar date; overnight events split across
+  // midnight into their REAL next-day date, so a Sun->Mon event still shows
+  // its Monday-morning tail when you move to the next week ----
+  const startWin = startHour * 60, endWin = endHour * 60;
+  const segByDate = {};
+  const pushSeg = (iso, seg) => { (segByDate[iso] = segByDate[iso] || []).push(seg); };
+  tasks.forEach(t => {
+    if (t.completed || t.wontDo || !t.time || !t.dueDate) return;
+    const start = bbuTimeToMin(t.time);
+    const isEvent = t.type === 'event';
+    const rawEnd = (isEvent && t.endTime) ? bbuTimeToMin(t.endTime) : start + BBU_EVENT_DURATION_MIN;
+    const overnight = isEvent && t.endTime && rawEnd <= start;
+    if (!overnight) {
+      pushSeg(t.dueDate, { task: t, start, end: rawEnd, overnight: false });
+      return;
+    }
+    // Night part (start day): from start down to the bottom of the grid.
+    if (start < endWin) pushSeg(t.dueDate, { task: t, start, end: endWin, overnight: true, morning: false });
+    // Morning part (real next day): from the top of the grid up to the end time.
+    const next = new Date(t.dueDate + 'T00:00:00'); next.setDate(next.getDate() + 1);
+    const nextISO = formatDateISO(next);
+    if (rawEnd > startWin) pushSeg(nextISO, { task: t, start: startWin, end: rawEnd, overnight: true, morning: true });
+  });
+
   weekDays.forEach(d => {
     const iso = formatDateISO(d);
-    const dayTasks = tasks.filter(t => !t.completed && !t.wontDo && t.dueDate === iso);
     const col = document.createElement('div');
     col.className = 'bbu-cal-week-day';
     col.style.height = gridH + 'px';
@@ -644,17 +667,18 @@ function renderBbuCalWeek() {
     });
 
     // Timed tasks pinned to their exact time slot, nested into columns when
-    // they overlap (Google Calendar style). Events use their real end time.
-    const timed = dayTasks.filter(t => t.time && bbuTimeToMin(t.time) >= startHour * 60 && bbuTimeToMin(t.time) < endHour * 60);
-    const layoutItems = timed.map(t => {
-      const start = bbuTimeToMin(t.time);
-      const end = (t.type === 'event' && t.endTime) ? bbuTimeToMin(t.endTime) : start + BBU_EVENT_DURATION_MIN;
-      return { task: t, start, end };
-    });
-    bbuLayoutWeekEvents(layoutItems).forEach(ev => {
-      const top = ((ev.start - startHour * 60) / 60) * HOUR_H;
+    // they overlap (Google Calendar style). Overnight events are split: the
+    // night part lives here (start -> midnight), the morning part in the next
+    // day's column, each marked with a small continuation chip.
+    const segs = (segByDate[iso] || []).filter(s => s.start < endWin && s.end > startWin);
+    bbuLayoutWeekEvents(segs.map(s => ({ task: s.task, start: s.start, end: s.end, seg: s }))).forEach(ev => {
+      const top = ((ev.start - startWin) / 60) * HOUR_H;
       const el = createBbuTaskEl(ev.task, { compact: true });
       el.classList.add('bbu-cal-event');
+      if (ev.seg.overnight) {
+        el.classList.add(ev.seg.morning ? 'bbu-cal-event-spill-morning' : 'bbu-cal-event-spill-night');
+        el.setAttribute('data-spill', ev.seg.morning ? '↳' : '↷');
+      }
       el.style.top = Math.max(0, top) + 'px';
       el.style.left = `calc(${ev.left}% + 2px)`;
       el.style.width = `calc(${ev.width}% - 4px)`;
@@ -1277,7 +1301,10 @@ function bbuModalSave() {
   let time = isTodo ? null : m.time;
   let endTime = (isTodo || m.type !== 'event') ? null : m.endTime;
   if (m.type === 'event' && time) {
-    if (!endTime || bbuTimeToMin(endTime) <= bbuTimeToMin(time)) endTime = bbuAddHour(time);
+    // An end time before the start means the event crosses midnight (e.g.
+    // 7:30 PM -> 9:00 AM the next day). Keep the raw times — the calendar
+    // splits such events across the two days. Only default a missing end.
+    if (!endTime) endTime = bbuAddHour(time);
   }
   // To-Do items are plain: no date, no time, no flags, no colour.
   const dueDate = isTodo ? null : m.dueDate;
