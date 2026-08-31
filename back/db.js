@@ -132,12 +132,20 @@ function setBbuCalMode(mode) {
 }
 
 function getPomoSettings() {
-  const d = { workMin: 25, shortBreakMin: 5, longBreakMin: 15, longBreakEvery: 4, sound: true, location: 'view', floatingOverlay: false };
+  const d = { workMin: 25, shortBreakMin: 5, longBreakMin: 15, longBreakEvery: 4, sound: true, location: 'view', floatingOverlay: false, historyCollapsed: false };
   try { return Object.assign({}, d, JSON.parse(localStorage.getItem('butime_pomodoro')) || {}); }
   catch { return d; }
 }
 function savePomoSettings(s) {
   localStorage.setItem('butime_pomodoro', JSON.stringify(s));
+}
+
+function getPomoHistory() {
+  try { return JSON.parse(localStorage.getItem('butime_pomo_history')) || []; }
+  catch { return []; }
+}
+function savePomoHistory(h) {
+  localStorage.setItem('butime_pomo_history', JSON.stringify(h));
 }
 
 function getTodoStatus(todo) {

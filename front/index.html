@@ -216,21 +216,61 @@
 
   <!-- POMODORO VIEW -->
   <div class="view-panel" id="viewPomodoro" style="display:none">
-    <div class="pomo-view-wrap">
-      <div class="pomo-view-widget">
-        <div class="pomo-mode">FOCUS</div>
-        <div class="pomo-time">25:00</div>
-        <div class="pomo-progress"></div>
-        <div class="pomo-title" style="display:none"></div>
-        <div class="pomo-controls">
-          <button class="pomo-btn pomo-start">▶ START</button>
-          <button class="pomo-btn pomo-reset" title="Reset">⟲</button>
-          <button class="pomo-btn pomo-overlay" title="Floating timer overlay">⧉</button>
-          <button class="pomo-btn pomo-settings" title="Pomodoro settings">⚙</button>
+    <div class="pomo-view-body">
+      <div class="pomo-view-wrap">
+        <div class="pomo-view-widget">
+          <div class="pomo-mode">FOCUS</div>
+          <div class="pomo-time">25:00</div>
+          <div class="pomo-progress"></div>
+          <div class="pomo-title" style="display:none"></div>
+          <div class="pomo-controls">
+            <button class="pomo-btn pomo-start">▶ START</button>
+            <button class="pomo-btn pomo-reset" title="Reset">⟲</button>
+            <button class="pomo-btn pomo-overlay" title="Floating timer overlay">⧉</button>
+            <button class="pomo-btn pomo-settings" title="Pomodoro settings">⚙</button>
+          </div>
+          <div class="pomo-task-actions" style="display:none">
+            <button class="pomo-finish">✓ Finish task</button>
+            <button class="pomo-unlink" title="Remove linked task">✕ Remove</button>
+          </div>
         </div>
-        <div class="pomo-task-actions" style="display:none">
-          <button class="pomo-finish">✓ Finish task</button>
-          <button class="pomo-unlink" title="Remove linked task">✕ Remove</button>
+      </div>
+      <div class="pomo-history-panel" id="pomoHistoryPanel">
+        <div class="pomo-history-head">
+          <span class="pomo-history-title">HISTORY</span>
+          <button class="pomo-history-collapse" id="pomoHistoryCollapse" title="Collapse">»</button>
+        </div>
+        <div class="pomo-history-body">
+          <div class="pomo-h-section">
+            <div class="pomo-h-section-title">Overview</div>
+            <div class="pomo-h-stats">
+              <div class="pomo-h-stat">
+                <div class="pomo-h-stat-value" id="pomoStatTodayPomo">0</div>
+                <div class="pomo-h-stat-label">Today's Pomo</div>
+              </div>
+              <div class="pomo-h-stat">
+                <div class="pomo-h-stat-value" id="pomoStatTodayFocus">0 m</div>
+                <div class="pomo-h-stat-label">Today's Focus</div>
+              </div>
+              <div class="pomo-h-stat">
+                <div class="pomo-h-stat-value" id="pomoStatTotalPomo">0</div>
+                <div class="pomo-h-stat-label">Total Pomo</div>
+              </div>
+              <div class="pomo-h-stat">
+                <div class="pomo-h-stat-value" id="pomoStatTotalFocus">0 m</div>
+                <div class="pomo-h-stat-label">Total Focus Duration</div>
+              </div>
+            </div>
+          </div>
+          <div class="pomo-h-section">
+            <div class="pomo-h-section-title-row">
+              <div class="pomo-h-section-title">Focus Record</div>
+              <div class="pomo-h-section-actions" id="pomoHistoryMenu">
+                <button class="pomo-h-iconbtn" id="pomoHistoryMenuBtn" title="History options">⋯</button>
+              </div>
+            </div>
+            <div class="pomo-h-list" id="pomoHistoryList"></div>
+          </div>
         </div>
       </div>
     </div>

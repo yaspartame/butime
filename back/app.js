@@ -2016,10 +2016,17 @@ function openBbuDayCreateMenu(e, dateISO, date) {
   }));
 }
 function bbuQuickDue(taskId, which) {
+  const tasks = getBbuTasks();
+  const t = tasks.find(x => x.id === taskId);
   const n = new Date(); n.setHours(0, 0, 0, 0);
   if (which === 'today') bbuSetDueDate(taskId, formatDateISO(n));
   else if (which === 'tomorrow') { n.setDate(n.getDate() + 1); bbuSetDueDate(taskId, formatDateISO(n)); }
-  else if (which === 'week') { n.setDate(n.getDate() + 7); bbuSetDueDate(taskId, formatDateISO(n)); }
+  else if (which === 'week') {
+    // "Next week" keeps the item's own weekday: +7 from its current date (or today if unset).
+    const from = (t && t.dueDate) ? new Date(t.dueDate + 'T00:00:00') : n;
+    from.setDate(from.getDate() + 7);
+    bbuSetDueDate(taskId, formatDateISO(from));
+  }
   else if (which === 'clear') bbuSetDueDate(taskId, null);
 }
 function closeBbuMenu() {
@@ -2110,7 +2117,13 @@ function initBbuPanels() {
   });
   document.getElementById('bbuDateToday').addEventListener('click', () => { const n = new Date(); n.setHours(0, 0, 0, 0); state.bbuModal.dueDate = formatDateISO(n); renderBbuDue(); closeBbuPanels(); });
   document.getElementById('bbuDateTomorrow').addEventListener('click', () => { const n = new Date(); n.setDate(n.getDate() + 1); state.bbuModal.dueDate = formatDateISO(n); renderBbuDue(); closeBbuPanels(); });
-  document.getElementById('bbuDateWeek').addEventListener('click', () => { const n = new Date(); n.setDate(n.getDate() + 7); state.bbuModal.dueDate = formatDateISO(n); renderBbuDue(); closeBbuPanels(); });
+  document.getElementById('bbuDateWeek').addEventListener('click', () => {
+    // "Next week" keeps the item's own weekday when editing: +7 from its current date (or today if unset).
+    let from = new Date(); from.setHours(0, 0, 0, 0);
+    if (state.bbuModal.dueDate) from = new Date(state.bbuModal.dueDate + 'T00:00:00');
+    from.setDate(from.getDate() + 7);
+    state.bbuModal.dueDate = formatDateISO(from); renderBbuDue(); closeBbuPanels();
+  });
   document.getElementById('bbuDateField').addEventListener('click', () => openNative(document.getElementById('bbuDateInput')));
   document.getElementById('bbuDateInput').addEventListener('change', (e) => { state.bbuModal.dueDate = e.target.value || null; renderBbuDue(); });
   document.getElementById('bbuDateClear').addEventListener('click', () => { state.bbuModal.dueDate = null; renderBbuDue(); closeBbuPanels(); });
@@ -2213,6 +2226,7 @@ const pomoState = {
   title: '',
   done: false,
   advanceTimer: null,
+  sessionStart: null,
 };
 let pomoAudioCtx = null;
 
@@ -2266,6 +2280,7 @@ function pomoCompleteInterval() {
   let next;
   if (pomoState.mode === 'focus') {
     pomoState.sessionCount++;
+    pomoRecordSession();
     next = (pomoState.sessionCount % s.longBreakEvery === 0) ? 'longBreak' : 'shortBreak';
   } else {
     next = 'focus';
@@ -2283,6 +2298,7 @@ function pomoCompleteInterval() {
     }
     pomoState.running = true;
     pomoState.endTime = Date.now() + pomoState.secondsLeft * 1000;
+    if (pomoState.mode === 'focus') pomoState.sessionStart = Date.now();
     renderPomodoro();
   }, waitMs);
   renderPomodoro();
@@ -2306,6 +2322,7 @@ function pomoStart() {
     if (pomoState.secondsLeft <= 0) pomoState.secondsLeft = pomoNextSeconds(pomoState.mode);
     pomoState.running = true;
     pomoState.endTime = Date.now() + pomoState.secondsLeft * 1000;
+    if (pomoState.mode === 'focus') pomoState.sessionStart = Date.now();
   }
   renderPomodoro();
 }
@@ -2316,7 +2333,131 @@ function pomoReset() {
   pomoState.secondsLeft = pomoNextSeconds('focus');
   pomoState.sessionCount = 0;
   pomoState.done = false;
+  pomoState.sessionStart = null;
   renderPomodoro();
+}
+
+function pomoRecordSession() {
+  const s = getPomoSettings();
+  const start = pomoState.sessionStart || (Date.now() - s.workMin * 60000);
+  const end = Date.now();
+  const durationMin = Math.max(1, Math.round((end - start) / 60000));
+  const h = getPomoHistory();
+  h.push({ id: genId(), start, end, durationMin, taskId: pomoState.taskId || null, taskName: pomoState.title || null, createdAt: new Date().toISOString() });
+  savePomoHistory(h);
+  pomoState.sessionStart = null;
+}
+function fmtPomoMinutes(min) {
+  const m = Math.round(min || 0);
+  if (m < 60) return `${m} m`;
+  const h = Math.floor(m / 60), r = m % 60;
+  return r ? `${h} h ${r} m` : `${h} h`;
+}
+function pomoTimeHH(ts) {
+  const d = new Date(ts);
+  return `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+function formatPomoDay(d) {
+  const today = new Date();
+  const s = `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
+  return d.getFullYear() === today.getFullYear() ? s : `${s}, ${d.getFullYear()}`;
+}
+function pomoHistoryRow(s) {
+  const row = document.createElement('div');
+  row.className = 'pomo-h-session';
+  const icon = document.createElement('div');
+  icon.className = 'pomo-h-icon';
+  icon.textContent = '🕒';
+  const info = document.createElement('div');
+  info.className = 'pomo-h-info';
+  if (s.taskName) {
+    const task = document.createElement('div');
+    task.className = 'pomo-h-task';
+    task.textContent = s.taskName;
+    info.appendChild(task);
+  }
+  const range = document.createElement('div');
+  range.className = 'pomo-h-range';
+  range.textContent = `${pomoTimeHH(s.start)} - ${pomoTimeHH(s.end)}`;
+  info.appendChild(range);
+  const dur = document.createElement('div');
+  dur.className = 'pomo-h-dur';
+  dur.textContent = `${s.durationMin || 0}m`;
+  row.appendChild(icon);
+  row.appendChild(info);
+  row.appendChild(dur);
+  return row;
+}
+function renderPomoHistory() {
+  const h = getPomoHistory();
+  const todayISO = formatDateISO(new Date());
+  const sum = arr => arr.reduce((a, s) => a + (s.durationMin || 0), 0);
+  const today = h.filter(s => formatDateISO(new Date(s.start)) === todayISO);
+  document.getElementById('pomoStatTodayPomo').textContent = today.length;
+  document.getElementById('pomoStatTodayFocus').textContent = fmtPomoMinutes(sum(today));
+  document.getElementById('pomoStatTotalPomo').textContent = h.length;
+  document.getElementById('pomoStatTotalFocus').textContent = fmtPomoMinutes(sum(h));
+  const list = document.getElementById('pomoHistoryList');
+  list.innerHTML = '';
+  if (!h.length) {
+    const e = document.createElement('div');
+    e.className = 'pomo-h-empty';
+    e.textContent = 'No focus sessions yet';
+    list.appendChild(e);
+    return;
+  }
+  const sorted = h.slice().sort((a, b) => b.start - a.start);
+  const groups = {};
+  sorted.forEach(s => {
+    const key = formatDateISO(new Date(s.start));
+    (groups[key] = groups[key] || []).push(s);
+  });
+  Object.keys(groups).forEach(key => {
+    const day = new Date(key + 'T00:00:00');
+    const g = document.createElement('div');
+    g.className = 'pomo-h-day';
+    const lab = document.createElement('div');
+    lab.className = 'pomo-h-day-label';
+    lab.textContent = formatPomoDay(day);
+    g.appendChild(lab);
+    groups[key].forEach(s => g.appendChild(pomoHistoryRow(s)));
+    list.appendChild(g);
+  });
+}
+function pomoHistoryClear() {
+  uiConfirm('Clear all pomodoro history? This cannot be undone.', () => {
+    savePomoHistory([]);
+    renderPomoHistory();
+  });
+}
+function pomoHistoryMenuOpen(btn) {
+  const m = document.getElementById('bbuMenu');
+  m.innerHTML = `
+    <div class="bbu-menu-section">
+      <div class="bbu-menu-item danger" data-act="clear-all">✕ Clear all history</div>
+    </div>`;
+  m.style.display = 'block';
+  const mw = m.offsetWidth, mh = m.offsetHeight;
+  const r = btn.getBoundingClientRect();
+  let x = r.right - mw, y = r.bottom + 4;
+  if (x < 4) x = 4;
+  if (y + mh > window.innerHeight - 8) y = r.top - mh - 4;
+  m.style.left = Math.max(4, x) + 'px';
+  m.style.top = Math.max(4, y) + 'px';
+  m.querySelectorAll('.bbu-menu-item').forEach(it => it.addEventListener('click', () => {
+    if (it.dataset.act === 'clear-all') pomoHistoryClear();
+    closeBbuMenu();
+  }));
+}
+function pomoHistoryToggleCollapse() {
+  const panel = document.getElementById('pomoHistoryPanel');
+  const collapsed = panel.classList.toggle('collapsed');
+  const s = getPomoSettings();
+  s.historyCollapsed = collapsed;
+  savePomoSettings(s);
+  const btn = document.getElementById('pomoHistoryCollapse');
+  btn.textContent = collapsed ? '«' : '»';
+  btn.title = collapsed ? 'Expand' : 'Collapse';
 }
 function pomoFinishTask() {
   const taskId = pomoState.taskId;
@@ -2399,6 +2540,7 @@ function renderPomodoro() {
     });
   }
   updatePomoSidebarVisibility();
+  renderPomoHistory();
 }
 
 function pomoSettingsHTML() {
@@ -2495,6 +2637,25 @@ function initPomodoro() {
   document.querySelectorAll('.pomo-overlay').forEach(b => b.addEventListener('click', pomoToggleOverlay));
   document.querySelectorAll('.pomo-overlay').forEach(b => b.classList.toggle('active', !!getPomoSettings().floatingOverlay));
   if (window.butime && window.butime.toggleOverlay) window.butime.toggleOverlay(!!getPomoSettings().floatingOverlay);
+  // Pomodoro history sidebar controls
+  const histCollapse = document.getElementById('pomoHistoryCollapse');
+  if (histCollapse) {
+    if (getPomoSettings().historyCollapsed) {
+      document.getElementById('pomoHistoryPanel').classList.add('collapsed');
+      histCollapse.textContent = '«';
+      histCollapse.title = 'Expand';
+    }
+    histCollapse.addEventListener('click', pomoHistoryToggleCollapse);
+  }
+  const histMenuBtn = document.getElementById('pomoHistoryMenuBtn');
+  if (histMenuBtn) {
+    histMenuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const m = document.getElementById('bbuMenu');
+      if (m.style.display !== 'none') { closeBbuMenu(); return; }
+      pomoHistoryMenuOpen(histMenuBtn);
+    });
+  }
   document.getElementById('pomoSettingsClose').addEventListener('click', closePomoSettings);
   setInterval(() => {
     // Only tick while a session is actually running — avoids constant idle work
