@@ -3525,7 +3525,7 @@ input[type="time"].form-input {
 
 .bbu-cal-day-count {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.5px;
   line-height: 1;
   color: var(--text-secondary);
