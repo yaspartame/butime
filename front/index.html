@@ -3,26 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>butime // timetable</title>
+  <title>butime</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <!-- HEADER -->
   <header class="header">
-    <div class="header-left" id="headerLeft">
-      <button class="nav-btn" id="prevWeek" aria-label="Previous week">⟨</button>
-      <span class="week-label" id="weekLabel">WEEK</span>
-      <button class="nav-btn" id="nextWeek" aria-label="Next week">⟩</button>
-      <button class="nav-btn" id="todayBtn" aria-label="Go to today">◎</button>
-    </div>
     <div class="header-center">
       <div class="view-selector" id="viewSelector">
-        <span class="view-current" id="viewCurrent">TIMETABLE</span>
+        <span class="view-current" id="viewCurrent">MATRIX</span>
         <div class="view-dropdown" id="viewDropdown"></div>
       </div>
     </div>
     <div class="header-right">
-      <span class="alert-badge" id="alertBadge" style="display:none">!</span>
       <button class="nav-btn widget-toggle-btn" id="widgetToggleBtn" title="Toggle Today & Tomorrow widget">▦</button>
       <button class="add-btn" id="addBtn">+ ADD</button>
     </div>
@@ -75,21 +68,6 @@
         <h2 class="settings-title">SETTINGS</h2>
 
         <div class="settings-section">
-          <h3 class="settings-section-title">MODE</h3>
-          <p class="settings-desc">Legacy and BBU each keep their own separate data. Switching modes never deletes the other mode's data.</p>
-          <div class="mode-selector" id="modeSelector">
-            <div class="mode-option" data-mode="legacy">
-              <span class="mode-option-name">LEGACY</span>
-              <span class="mode-option-desc">Timetable · weekly to-do list · instances</span>
-            </div>
-            <div class="mode-option" data-mode="bbu">
-              <span class="mode-option-name">BBU</span>
-              <span class="mode-option-desc">Eisenhower matrix · calendar · instances</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-section">
           <h3 class="settings-section-title">CLOSING APP</h3>
           <p class="settings-desc">What should happen when you close the butime window?</p>
           <div class="mode-selector" id="closeActionSelector">
@@ -124,39 +102,6 @@
           </label>
         </div>
 
-        <div id="settingsLegacySections">
-          <div class="settings-section">
-            <h3 class="settings-section-title">DEFAULT "NEAR DEADLINE" THRESHOLDS</h3>
-            <p class="settings-desc">How close to the deadline should a todo turn urgent?</p>
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">IMMEDIATE TYPE</label>
-                <div class="input-with-unit">
-                  <input type="number" class="form-input" id="setNearImmediate" min="1" value="24">
-                  <span class="input-unit">hours</span>
-                </div>
-              </div>
-              <div class="form-group">
-                <label class="form-label">BEFORE DEADLINE TYPE</label>
-                <div class="input-with-unit">
-                  <input type="number" class="form-input" id="setNearScheduled" min="1" value="48">
-                  <span class="input-unit">hours</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="settings-section">
-            <h3 class="settings-section-title">PER-TODO URGENCY OVERRIDE</h3>
-            <p class="settings-desc">When enabled, each todo can have its own "near" threshold.</p>
-            <label class="toggle-row">
-              <span class="toggle-label">Enable per-todo urgency</span>
-              <input type="checkbox" class="toggle-input" id="setPerTodoUrgency">
-              <span class="toggle-switch"></span>
-            </label>
-          </div>
-        </div>
-
         <div class="settings-section">
           <h3 class="settings-section-title">EXPORT / IMPORT</h3>
           <p class="settings-desc">Export all instances and settings as a JSON file, or import a previously exported file to restore everything.</p>
@@ -171,30 +116,6 @@
           <button class="btn btn-cancel" id="settingsBackBtn">← BACK</button>
           <button class="btn btn-save" id="settingsSaveBtn">SAVE</button>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- TIMETABLE VIEW -->
-  <div class="view-panel" id="viewTimetable">
-    <div class="timetable-wrapper">
-      <div class="time-gutter">
-        <div class="gutter-header"></div>
-        <div class="gutter-labels"></div>
-      </div>
-      <div class="timetable-scroll" id="timetableScroll">
-        <div class="timetable" id="timetable">
-          <!-- Day headers + cells rendered by JS -->
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- TODO LIST VIEW -->
-  <div class="view-panel" id="viewTodo" style="display:none">
-    <div class="todo-wrapper" id="todoWrapper">
-      <div class="todo-container" id="todoContainer">
-        <!-- Rendered by JS -->
       </div>
     </div>
   </div>
@@ -294,169 +215,6 @@
     </div>
   </div>
 
-  <!-- ===== TIMETABLE ENTRY MODAL ===== -->
-  <div class="modal-overlay" id="modalOverlay">
-    <div class="modal" id="modal">
-      <div class="modal-header">
-        <span class="modal-title" id="modalTitle">NEW ENTRY</span>
-        <button class="modal-close" id="modalClose">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label class="form-label">TITLE</label>
-          <input type="text" class="form-input" id="entryTitle" placeholder="What is this task?">
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">DATE</label>
-            <select class="form-input" id="entryDay"></select>
-          </div>
-        </div>
-        <div class="form-row form-row-times">
-          <div class="form-group">
-            <label class="form-label">START</label>
-            <input type="time" class="form-input" id="entryStart">
-          </div>
-          <div class="form-group">
-            <label class="form-label">END</label>
-            <input type="time" class="form-input" id="entryEnd">
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">CATEGORY</label>
-          <div class="category-selector" id="categorySelector"></div>
-          <button class="btn btn-small btn-add-category" id="addCategoryBtn">+ NEW CATEGORY</button>
-        </div>
-        <div class="form-group" id="linkedTodoGroup" style="display:none">
-          <label class="form-label">LINKED TODO</label>
-          <div class="linked-todo-bar" id="linkedTodoBar">
-            <span class="linked-todo-name" id="linkedTodoName"></span>
-            <button class="linked-todo-remove" id="linkedTodoRemove">✕</button>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-delete" id="deleteBtn" style="display:none">DELETE</button>
-        <div class="modal-footer-right">
-          <button class="btn btn-cancel" id="modalCancel">CANCEL</button>
-          <button class="btn btn-save" id="modalSave">SAVE</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===== CATEGORY MODAL ===== -->
-  <div class="modal-overlay" id="catModalOverlay">
-    <div class="modal" id="catModal">
-      <div class="modal-header">
-        <span class="modal-title">NEW CATEGORY</span>
-        <button class="modal-close" id="catModalClose">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label class="form-label">NAME</label>
-          <input type="text" class="form-input" id="catName" placeholder="Category name">
-        </div>
-        <div class="form-group">
-          <label class="form-label">COLOUR</label>
-          <div class="color-picker-row">
-            <input type="color" class="color-input" id="catColor" value="#6b7db3">
-            <span class="color-hex" id="catColorHex">#6b7db3</span>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-delete" id="catDeleteBtn" style="display:none">DELETE</button>
-        <div class="modal-footer-right">
-          <button class="btn btn-cancel" id="catModalCancel">CANCEL</button>
-          <button class="btn btn-save" id="catModalSave">SAVE</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===== LINK TODO MODAL ===== -->
-  <div class="modal-overlay" id="linkModalOverlay">
-    <div class="modal modal-wide" id="linkModal">
-      <div class="modal-header">
-        <span class="modal-title">LINK TO TODO</span>
-        <button class="modal-close" id="linkModalClose">✕</button>
-      </div>
-      <div class="modal-body">
-        <p class="modal-hint">Select a todo to link this entry to, or leave unlinked.</p>
-        <div class="todo-picker-list" id="todoPickerList"></div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-cancel" id="linkModalUnlink" style="display:none">UNLINK</button>
-        <div class="modal-footer-right">
-          <button class="btn btn-cancel" id="linkModalCancel">CANCEL</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===== TODO MODAL ===== -->
-  <div class="modal-overlay" id="todoModalOverlay">
-    <div class="modal" id="todoModal">
-      <div class="modal-header">
-        <span class="modal-title" id="todoModalTitle">NEW TODO</span>
-        <button class="modal-close" id="todoModalClose">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label class="form-label">NAME</label>
-          <input type="text" class="form-input" id="todoName" placeholder="What is to be done?">
-        </div>
-        <div class="form-group">
-          <label class="form-label">DEADLINE</label>
-          <input type="datetime-local" class="form-input" id="todoDeadline" placeholder="Leave blank if no deadline">
-          <span class="form-hint">Leave blank if no deadline</span>
-        </div>
-        <div class="form-group" id="todoNearGroup" style="display:none">
-          <label class="form-label">"NEAR" THRESHOLD</label>
-          <div class="input-with-unit">
-            <input type="number" class="form-input" id="todoNearThreshold" min="1" value="24" placeholder="Hours before deadline">
-            <span class="input-unit">hours</span>
-          </div>
-          <span class="form-hint">When this close to the deadline, mark as urgent</span>
-        </div>
-        <div class="form-group">
-          <label class="form-label">TYPE</label>
-          <div class="todo-type-selector" id="todoTypeSelector">
-            <label class="todo-type-option" data-value="immediate" tabindex="0">
-              <span class="todo-type-dot type-immediate"></span>
-              <div class="todo-type-info">
-                <span class="todo-type-name">Immediate</span>
-                <span class="todo-type-desc">Yellow, turns red when near deadline</span>
-              </div>
-            </label>
-            <label class="todo-type-option" data-value="scheduled" tabindex="0">
-              <span class="todo-type-dot type-scheduled"></span>
-              <div class="todo-type-info">
-                <span class="todo-type-name">Do Before Deadline</span>
-                <span class="todo-type-desc">Yellow, turns orange when near deadline</span>
-              </div>
-            </label>
-            <label class="todo-type-option" data-value="casual" tabindex="0">
-              <span class="todo-type-dot type-casual"></span>
-              <div class="todo-type-info">
-                <span class="todo-type-name">No Deadline</span>
-                <span class="todo-type-desc">Always gray</span>
-              </div>
-            </label>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-delete" id="todoDeleteBtn" style="display:none">DELETE</button>
-        <div class="modal-footer-right">
-          <button class="btn btn-cancel" id="todoModalCancel">CANCEL</button>
-          <button class="btn btn-save" id="todoModalSave">SAVE</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- ===== INSTANCE MODAL ===== -->
   <div class="modal-overlay" id="instanceModalOverlay">
     <div class="modal" id="instanceModal">
@@ -506,25 +264,6 @@
         <div class="modal-footer-right">
           <button class="btn btn-cancel" id="confirmCancelBtn">CANCEL</button>
           <button class="btn btn-save" id="confirmOkBtn">OK</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===== MODE SWITCH CONFIRM ===== -->
-  <div class="modal-overlay" id="modeModalOverlay">
-    <div class="modal" id="modeModal">
-      <div class="modal-header">
-        <span class="modal-title">SWITCH MODE?</span>
-        <button class="modal-close" id="modeModalClose">✕</button>
-      </div>
-      <div class="modal-body">
-        <p class="modal-hint" id="modeModalText"></p>
-      </div>
-      <div class="modal-footer">
-        <div class="modal-footer-right">
-          <button class="btn btn-cancel" id="modeModalCancel">CANCEL</button>
-          <button class="btn btn-save" id="modeModalConfirm">SWITCH</button>
         </div>
       </div>
     </div>
