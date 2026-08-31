@@ -464,16 +464,15 @@ document.getElementById('confirmOkBtn').addEventListener('click', () => {
 });
 document.getElementById('confirmCancelBtn').addEventListener('click', closeUiConfirm);
 
-// Electron: after alt-tabbing back into the app, Chromium sometimes keeps the
-// focused field from receiving keystrokes (the "have to tab out again" bug).
-// Blur + refocus the active element when the window regains focus, which is
-// exactly what tabbing out and back would do — but automatically.
+let lastFocusEl = null;
+document.addEventListener('focusin', () => { lastFocusEl = document.activeElement; });
 window.addEventListener('focus', () => {
-  const el = document.activeElement;
-  if (el && el !== document.body && el !== document.documentElement && typeof el.blur === 'function' && typeof el.focus === 'function') {
-    el.blur();
-    requestAnimationFrame(() => { try { el.focus(); } catch (_) { /* element may be gone */ } });
-  }
+  const el = lastFocusEl && lastFocusEl.isConnected ? lastFocusEl : null;
+  setTimeout(() => {
+    if (el && el !== document.activeElement && typeof el.focus === 'function') {
+      try { el.focus(); } catch (_) { /* element may be gone */ }
+    }
+  }, 0);
 });
 
 function rerenderCurrentView() { applyModeUI(); }
@@ -2498,12 +2497,14 @@ function initPomodoro() {
   if (window.butime && window.butime.toggleOverlay) window.butime.toggleOverlay(!!getPomoSettings().floatingOverlay);
   document.getElementById('pomoSettingsClose').addEventListener('click', closePomoSettings);
   setInterval(() => {
+    // Only tick while a session is actually running — avoids constant idle work
+    // (every 500 ms of DOM updates + IPC when the timer isn't even going).
     if (pomoState.running && pomoState.endTime) {
       const rem = Math.max(0, (pomoState.endTime - Date.now()) / 1000);
       pomoState.secondsLeft = rem;
       if (rem <= 0) pomoCompleteInterval();
+      renderPomodoro();
     }
-    renderPomodoro();
   }, 500);
   applyPomoLocation();
   renderPomodoro();
