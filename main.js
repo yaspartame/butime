@@ -287,6 +287,16 @@ ipcMain.on('widget:close', (_e, id) => {
   persistWidgetConfig();
   broadcastWidgetList();
 });
+ipcMain.on('widget:autosize', (_e, payload) => {
+  const id = payload && payload.id;
+  const h = payload && Math.round(payload.height);
+  if (!id || !h) return;
+  const w = widgets.find(x => x.id === id);
+  if (!w || !w.win || w.win.isDestroyed()) return;
+  const b = w.win.getBounds();
+  const clamped = Math.max(240, Math.min(620, h));
+  if (Math.abs(b.height - clamped) > 2) w.win.setBounds({ ...b, height: clamped });
+});
 // A widget window just loaded — ask the app for fresh data.
 ipcMain.on('widget:getdata', (_e, id) => {
   if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('widget:refresh', id);

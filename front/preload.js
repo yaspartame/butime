@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('butime', {
   widgetRemoveInstance: (instanceId) => ipcRenderer.send('widget:remove-instance', instanceId),
   widgetGetConfig: () => ipcRenderer.invoke('widget:get-config'),
   widgetSetConfig: (cfg) => ipcRenderer.send('widget:set-config', cfg),
+  widgetAutoSize: (id, height) => ipcRenderer.send('widget:autosize', { id, height }),
 
   onPomoState: (cb) => ipcRenderer.on('pomo:update', (_e, state) => cb(state)),
   onWidgetData: (cb) => ipcRenderer.on('widget:update', (_e, payload) => cb(payload)),

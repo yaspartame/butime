@@ -39,6 +39,20 @@
   // Just loaded — ask the app to send us fresh data.
   if (window.butime && window.butime.widgetGetData) window.butime.widgetGetData(WID);
 
+  requestAnimationFrame(autosize);
+
+  function autosize() {
+    if (!window.butime || !window.butime.widgetAutoSize) return;
+    const wd = document.querySelector('.wd');
+    if (!wd) return;
+
+    const prev = wd.style.height;
+    wd.style.height = 'auto';
+    const h = Math.ceil(wd.offsetHeight);
+    wd.style.height = prev;
+    if (h > 0) window.butime.widgetAutoSize(WID, h);
+  }
+
   function render(p) {
     if (!p) return;
     $('wdTitle').textContent = String(p.instanceName || '').toUpperCase() || 'TODAY & TOMORROW';
@@ -62,6 +76,7 @@
         });
       }
     }
+    autosize();
   }
 
   function renderDay(prefix, day) {

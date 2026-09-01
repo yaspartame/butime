@@ -537,6 +537,8 @@ function renderBbuCalWeek() {
   const wrap = document.getElementById('bbuCalendar');
   const tasks = getBbuTasks().filter(t => !t.parentId);
   document.getElementById('bbuCalLabel').textContent = `W${getWeekNumber(base)} // ${MONTH_SHORT[base.getMonth()]} ${base.getDate()} - ${MONTH_SHORT[weekDays[6].getMonth()]} ${weekDays[6].getDate()} ${base.getFullYear()}`;
+  const oldScroll = wrap.querySelector('.bbu-cal-week-scroll');
+  const prevScrollTop = (oldScroll && oldScroll.dataset.week === formatDateISO(base)) ? oldScroll.scrollTop : 0;
   wrap.className = 'bbu-calendar week';
   wrap.innerHTML = '';
 
@@ -602,6 +604,7 @@ function renderBbuCalWeek() {
   // ---- Scrollable timed grid ----
   const scroll = document.createElement('div');
   scroll.className = 'bbu-cal-week-scroll';
+  scroll.dataset.week = formatDateISO(base);
   scroll.appendChild(head);
   if (hasAllday) scroll.appendChild(allday);
   const body = document.createElement('div');
@@ -715,6 +718,8 @@ function renderBbuCalWeek() {
   if (hasAllday) {
     allday.style.top = (head.offsetHeight || 0) + 'px';
   }
+
+  if (prevScrollTop) scroll.scrollTop = prevScrollTop;
   renderBbuCalOverdue(tasks);
 }
 
@@ -1095,6 +1100,8 @@ function openBbuModal(opts) {
   let type = opts.type === 'event' ? 'event' : (opts.type === 'todo' ? 'todo' : 'task');
   let name = '';
   let description = '';
+  let color = null;
+  let colorCategory = null;
   if (opts.mode === 'edit' && opts.editId) {
     const t = tasks.find(x => x.id === opts.editId);
     if (!t) return;
@@ -1106,6 +1113,8 @@ function openBbuModal(opts) {
     type = t.type === 'event' ? 'event' : (t.type === 'todo' ? 'todo' : 'task');
     name = t.name;
     description = t.description || '';
+    color = t.color || null;
+    colorCategory = t.colorCategory || null;
   } else if (opts.mode === 'subtask' && opts.parentId) {
     const p = tasks.find(x => x.id === opts.parentId);
     if (!p) return;
@@ -1123,9 +1132,9 @@ function openBbuModal(opts) {
   }
   // To-Do items are plain: no date, no time, no flags.
   if (type === 'todo') { dueDate = null; time = null; endTime = null; priority = 0; }
-  state.bbuModal = { mode: opts.mode || 'create', parentId: opts.parentId || null, editId: opts.editId || null, quadrant, priority, dueDate, time, endTime, type, description };
+  state.bbuModal = { mode: opts.mode || 'create', parentId: opts.parentId || null, editId: opts.editId || null, quadrant, priority, dueDate, time, endTime, type, description, color, colorCategory };
   document.getElementById('bbuTaskInput').value = name;
-  document.getElementById('bbuColorOpenBtn').style.display = (state.bbuModal.mode === 'edit' && state.bbuModal.type !== 'todo') ? '' : 'none';
+  document.getElementById('bbuColorOpenBtn').style.display = (state.bbuModal.type !== 'todo') ? '' : 'none';
   const descInput = document.getElementById('bbuDescInput');
   descInput.value = description || '';
   descInput.style.height = 'auto';
@@ -1264,7 +1273,7 @@ function renderBbuMetaVisibility() {
   document.getElementById('bbuTimeField').style.display = isTodo ? 'none' : '';
   document.getElementById('bbuEndTimeField').style.display = isTodo ? 'none' : (m.type === 'event' ? '' : 'none');
   document.getElementById('bbuFlagBtn').style.display = isTodo ? 'none' : '';
-  document.getElementById('bbuColorOpenBtn').style.display = (m.mode === 'edit' && !isTodo) ? '' : 'none';
+  document.getElementById('bbuColorOpenBtn').style.display = (m.type !== 'todo') ? '' : 'none';
 }
 function renderBbuTime() {
   const field = document.getElementById('bbuTimeField');
@@ -1330,9 +1339,9 @@ function bbuModalSave() {
     }
   } else if (m.mode === 'subtask' && m.parentId) {
     const p = tasks.find(x => x.id === m.parentId);
-    if (p) tasks.push({ id: genId(), name, parentId: p.id, urgent: p.urgent, important: p.important, priority: p.priority, dueDate: p.dueDate, time, endTime, type: m.type, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now });
+    if (p) tasks.push({ id: genId(), name, parentId: p.id, urgent: p.urgent, important: p.important, priority: p.priority, dueDate: p.dueDate, time, endTime, type: m.type, color: m.color || null, colorCategory: m.colorCategory || null, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now });
   } else {
-    tasks.push({ id: genId(), name, parentId: null, urgent, important, priority, dueDate, time, endTime, type: m.type, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now });
+    tasks.push({ id: genId(), name, parentId: null, urgent, important, priority, dueDate, time, endTime, type: m.type, color: m.color || null, colorCategory: m.colorCategory || null, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now });
   }
   saveBbuTasks(tasks);
   closeBbuModal();
@@ -1367,13 +1376,19 @@ function bbuSetType(taskId, type) {
 // ---- Colour wheel modal (available in the month view only) ----
 const BBU_COLOR_PRESETS = ['#e0535a', '#f2994a', '#56ccf2', '#4ade80', '#6b7db3', '#a78bfa', '#f472b6', '#fbbf24', '#94a3b8', '#374151'];
 function openBbuColorModal(taskId) {
-  const t = getBbuTasks().find(x => x.id === taskId);
-  if (!t) return;
+  // taskId = null means we are colouring a brand-new (unsaved) item — read and
+  // write the colour on the modal draft instead of a stored task.
+  let t = taskId ? getBbuTasks().find(x => x.id === taskId) : null;
+  if (taskId && !t) return;
   state.bbuColorTaskId = taskId;
-  const { h, s, v } = hexToHsv(bbuColorOf(t));
+  let color;
+  if (t) color = bbuColorOf(t);
+  else color = (state.bbuModal && state.bbuModal.color) ? state.bbuModal.color : (state.bbuModal ? bbuQuadrantOf(state.bbuModal.quadrant).color : '#6b7db3');
+  const { h, s, v } = hexToHsv(color);
   state.bbuColor = { h, s, v };
-  // Preselect the task's colour category if it still exists.
-  const cat = getBbuCategories().find(c => c.id === t.colorCategory);
+  // Preselect the item's colour category if it still exists.
+  const catId = t ? t.colorCategory : (state.bbuModal ? state.bbuModal.colorCategory : null);
+  const cat = getBbuCategories().find(c => c.id === catId);
   state.bbuColorCatId = cat ? cat.id : null;
   renderBbuColor();
   renderBbuColorCat();
@@ -1587,15 +1602,28 @@ function initBbuColorModal() {
     presets.appendChild(b);
   });
   document.getElementById('bbuColorReset').addEventListener('click', () => {
-    const t = getBbuTasks().find(x => x.id === state.bbuColorTaskId);
-    if (t && state.bbuColor) {
-      const { h, s, v } = hexToHsv(bbuQuadrantOf(t).color);
+    if (!state.bbuColor) return;
+    let qColor;
+    if (state.bbuColorTaskId) {
+      const t = getBbuTasks().find(x => x.id === state.bbuColorTaskId);
+      if (t) qColor = bbuQuadrantOf(t).color;
+    } else if (state.bbuModal) {
+      qColor = bbuQuadrantOf(state.bbuModal.quadrant).color;
+    }
+    if (qColor) {
+      const { h, s, v } = hexToHsv(qColor);
       state.bbuColor = { h, s, v };
       bbuColorManualChange();
     }
   });
   document.getElementById('bbuColorSave').addEventListener('click', () => {
-    bbuSetTaskColor(state.bbuColorTaskId, bbuColorHex(), state.bbuColorCatId);
+    if (state.bbuColorTaskId) {
+      bbuSetTaskColor(state.bbuColorTaskId, bbuColorHex(), state.bbuColorCatId);
+    } else if (state.bbuModal) {
+      // Draft colour for a new item — applied when the entry is saved.
+      state.bbuModal.color = bbuColorHex();
+      state.bbuModal.colorCategory = state.bbuColorCatId;
+    }
     closeBbuColorModal();
   });
   document.getElementById('bbuColorCancel').addEventListener('click', closeBbuColorModal);
@@ -1978,7 +2006,10 @@ function initBbuPanels() {
   document.getElementById('bbuModalCancelBtn').addEventListener('click', closeBbuModal);
   document.getElementById('bbuModalSaveBtn').addEventListener('click', bbuModalSave);
   document.getElementById('bbuColorOpenBtn').addEventListener('click', () => {
-    if (state.bbuModal && state.bbuModal.editId) openBbuColorModal(state.bbuModal.editId);
+    if (!state.bbuModal) return;
+    // Existing item: colour it directly. New item: set a draft colour.
+    if (state.bbuModal.editId) openBbuColorModal(state.bbuModal.editId);
+    else openBbuColorModal(null);
   });
   document.getElementById('bbuTaskInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); bbuModalSave(); } });
   document.getElementById('bbuModalOverlay').addEventListener('click', (e) => { if (e.target === document.getElementById('bbuModalOverlay')) closeBbuModal(); });
