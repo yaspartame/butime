@@ -11,6 +11,7 @@ let state = {
   bbuCalMode: getBbuCalMode(),
   bbuCalOffset: 0,
   bbuCalMonthOffset: 0,
+  bbuNowRenderedDay: null,
   bbuModal: null,
   bbuMenuTaskId: null,
   bbuMenuCreateDate: null,
@@ -530,6 +531,24 @@ function bbuCalToday() {
   renderBbuCalendar();
 }
 
+function bbuRefreshNowIndicator() {
+  const panel = document.getElementById('viewBbuCalendar');
+  if (!panel || panel.style.display === 'none') return;
+  if (state.currentView !== 'calendar' || state.bbuCalMode !== 'week') return;
+  if (state.bbuNowRenderedDay && state.bbuNowRenderedDay !== formatDateISO(new Date())) {
+    renderBbuCalendar();
+    return;
+  }
+  const line = panel.querySelector('.bbu-cal-week-day.today .bbu-cal-week-now');
+  if (!line) return;
+  const now = new Date();
+  const nowTop = (now.getHours() * 60 + now.getMinutes()) / 60 * 48;
+  line.style.top = nowTop + 'px';
+  const dot = panel.querySelector('.bbu-cal-week-now-dot');
+  if (dot) dot.style.top = nowTop + 'px';
+}
+setInterval(bbuRefreshNowIndicator, 60000);
+
 function renderBbuCalWeek() {
   const base = getMonday(new Date());
   base.setDate(base.getDate() + state.bbuCalOffset * 7);
@@ -557,6 +576,7 @@ function renderBbuCalWeek() {
   const now = new Date();
   const nowTop = ((now.getHours() - startHour) * 60 + now.getMinutes()) / 60 * HOUR_H;
   const todayInWeek = weekDays.some(isToday);
+  state.bbuNowRenderedDay = formatDateISO(new Date());
 
   // Local UTC-offset label shown in the time gutter, e.g. GMT+08.
   const off = -new Date().getTimezoneOffset();
