@@ -52,6 +52,8 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+
+      backgroundThrottling: false,
       preload: path.join(__dirname, 'front', 'preload.js')
     }
   });
@@ -119,6 +121,7 @@ function createOverlayWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: false,
       preload: path.join(__dirname, 'front', 'preload.js')
     }
   });
