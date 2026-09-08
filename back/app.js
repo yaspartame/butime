@@ -2414,6 +2414,7 @@ function renderPomodoro() {
       modeStr,
       isBreak: pomoState.mode !== 'focus',
       done: pomoState.done,
+      running: pomoState.running,
       sessionDone: pomoState.sessionCount % s.longBreakEvery,
       longBreakEvery: s.longBreakEvery,
       title: pomoState.title || '',
@@ -2510,6 +2511,13 @@ function pomoToggleOverlay() {
 }
 function initPomodoro() {
   document.querySelectorAll('.pomo-start').forEach(b => b.addEventListener('click', pomoStart));
+  // The floating overlay can start / pause / reset the timer remotely.
+  if (window.butime && window.butime.onPomoControl) {
+    window.butime.onPomoControl((action) => {
+      if (action === 'toggle') pomoStart();
+      else if (action === 'reset') pomoReset();
+    });
+  }
   document.querySelectorAll('.pomo-reset').forEach(b => b.addEventListener('click', pomoReset));
   document.querySelectorAll('.pomo-finish').forEach(b => b.addEventListener('click', pomoFinishTask));
   document.querySelectorAll('.pomo-unlink').forEach(b => b.addEventListener('click', pomoUnlink));

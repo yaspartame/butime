@@ -52,7 +52,6 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-
       backgroundThrottling: false,
       preload: path.join(__dirname, 'front', 'preload.js')
     }
@@ -108,7 +107,7 @@ function createOverlayWindow() {
   const display = screen.getPrimaryDisplay().workArea;
   const overlay = new BrowserWindow({
     width: 200,
-    height: 124,
+    height: 158,
     frame: false,
     transparent: true,
     resizable: false,
@@ -241,6 +240,10 @@ ipcMain.on('pomo:overlay', (_e, show) => {
   if (!overlayWin || overlayWin.isDestroyed()) return;
   if (show) overlayWin.showInactive();
   else overlayWin.hide();
+});
+// The floating overlay asked to control the running pomodoro — relay to the app.
+ipcMain.on('pomo:control', (_e, action) => {
+  if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('pomo:control', action);
 });
 // Forward today/tomorrow data to a specific widget window.
 ipcMain.on('widget:update', (_e, payload) => {

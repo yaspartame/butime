@@ -3,9 +3,14 @@
   const timeEl = document.getElementById('ovTime');
   const progEl = document.getElementById('ovProgress');
   const titleEl = document.getElementById('ovTitle');
+  const toggleEl = document.getElementById('ovToggle');
 
   document.getElementById('ovClose').addEventListener('click', () => {
     if (window.butime) window.butime.toggleOverlay(false);
+  });
+
+  toggleEl.addEventListener('click', () => {
+    if (window.butime) window.butime.pomoControl('toggle');
   });
 
   if (window.butime && window.butime.onPomoState) {
@@ -28,6 +33,9 @@
       } else {
         titleEl.style.display = 'none';
       }
+      const running = !!s.running;
+      toggleEl.textContent = running ? '⏸ PAUSE' : '▶ START';
+      toggleEl.classList.toggle('running', running);
     });
   }
 })();

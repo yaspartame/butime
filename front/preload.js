@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('butime', {
 
   sendPomoState: (state) => ipcRenderer.send('pomo:update', state),
   toggleOverlay: (show) => ipcRenderer.send('pomo:overlay', show),
+  pomoControl: (action) => ipcRenderer.send('pomo:control', action),
   setCloseAction: (action) => ipcRenderer.send('app:closeAction', action),
   setAutoStart: (enable) => ipcRenderer.send('app:autostart', enable),
   sendWidgetData: (payload) => ipcRenderer.send('widget:update', payload),
@@ -19,6 +20,7 @@ contextBridge.exposeInMainWorld('butime', {
   widgetAutoSize: (id, height) => ipcRenderer.send('widget:autosize', { id, height }),
 
   onPomoState: (cb) => ipcRenderer.on('pomo:update', (_e, state) => cb(state)),
+  onPomoControl: (cb) => ipcRenderer.on('pomo:control', (_e, action) => cb(action)),
   onWidgetData: (cb) => ipcRenderer.on('widget:update', (_e, payload) => cb(payload)),
   onWidgetList: (cb) => ipcRenderer.on('widget:list', (_e, list) => cb(list)),
   onWidgetRefresh: (cb) => ipcRenderer.on('widget:refresh', (_e, id) => cb(id)),
