@@ -4,6 +4,7 @@
   const progEl = document.getElementById('ovProgress');
   const titleEl = document.getElementById('ovTitle');
   const toggleEl = document.getElementById('ovToggle');
+  const resetEl = document.getElementById('ovReset');
 
   document.getElementById('ovClose').addEventListener('click', () => {
     if (window.butime) window.butime.toggleOverlay(false);
@@ -11,6 +12,10 @@
 
   toggleEl.addEventListener('click', () => {
     if (window.butime) window.butime.pomoControl('toggle');
+  });
+
+  resetEl.addEventListener('click', () => {
+    if (window.butime) window.butime.pomoControl('reset');
   });
 
   if (window.butime && window.butime.onPomoState) {

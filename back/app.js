@@ -2511,8 +2511,7 @@ function pomoToggleOverlay() {
 }
 function initPomodoro() {
   document.querySelectorAll('.pomo-start').forEach(b => b.addEventListener('click', pomoStart));
-  // The floating overlay can start / pause / reset the timer remotely.
-  if (window.butime && window.butime.onPomoControl) {
+   if (window.butime && window.butime.onPomoControl) {
     window.butime.onPomoControl((action) => {
       if (action === 'toggle') pomoStart();
       else if (action === 'reset') pomoReset();

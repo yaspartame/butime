@@ -112,7 +112,7 @@ function createOverlayWindow() {
     transparent: true,
     resizable: false,
     skipTaskbar: true,
-    focusable: false,
+    focusable: true,
     alwaysOnTop: true,
     hasShadow: false,
     fullscreenable: false,
@@ -241,7 +241,6 @@ ipcMain.on('pomo:overlay', (_e, show) => {
   if (show) overlayWin.showInactive();
   else overlayWin.hide();
 });
-// The floating overlay asked to control the running pomodoro — relay to the app.
 ipcMain.on('pomo:control', (_e, action) => {
   if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('pomo:control', action);
 });

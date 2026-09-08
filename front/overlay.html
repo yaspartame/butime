@@ -65,6 +65,13 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .ov-controls {
+      -webkit-app-region: no-drag;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
+    }
     .ov-toggle {
       -webkit-app-region: no-drag;
       background: rgba(255, 255, 255, 0.06);
@@ -77,7 +84,6 @@
       line-height: 1;
       padding: 4px 12px;
       cursor: pointer;
-      margin-top: 2px;
     }
     .ov-toggle:hover {
       border-color: rgba(255, 255, 255, 0.32);
@@ -86,6 +92,22 @@
     .ov-toggle.running {
       border-color: rgba(232, 83, 90, 0.5);
       color: #e0535a;
+    }
+    .ov-reset {
+      -webkit-app-region: no-drag;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: #c8cdd8;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 11px;
+      line-height: 1;
+      padding: 4px 8px;
+      cursor: pointer;
+    }
+    .ov-reset:hover {
+      border-color: rgba(255, 255, 255, 0.32);
+      color: #fff;
     }
     .ov-close {
       -webkit-app-region: no-drag;
@@ -122,7 +144,10 @@
     <div class="ov-time" id="ovTime">25:00</div>
     <div class="ov-progress" id="ovProgress"></div>
     <div class="ov-title" id="ovTitle" style="display:none"></div>
-    <button class="ov-toggle" id="ovToggle" title="Start / pause">▶ START</button>
+    <div class="ov-controls">
+      <button class="ov-toggle" id="ovToggle" title="Start / pause">▶ START</button>
+      <button class="ov-reset" id="ovReset" title="Restart timer">⟲</button>
+    </div>
   </div>
   <script src="overlay.js"></script>
 </body>
