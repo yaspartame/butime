@@ -3256,22 +3256,6 @@ input[type="time"].form-input {
   border-color: var(--accent);
 }
 
-.bbu-menu-custom {
-  padding: 0 8px 6px;
-}
-
-.bbu-menu-custom input {
-  width: 100%;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius);
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 5px 8px;
-  color-scheme: dark;
-}
-
 .bbu-menu-priority-row {
   display: flex;
   gap: 6px;

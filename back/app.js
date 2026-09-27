@@ -15,6 +15,7 @@ let state = {
   bbuModal: null,
   bbuMenuTaskId: null,
   bbuMenuCreateDate: null,
+  bbuMenuCreateTime: null,
   bbuColorTaskId: null,
   bbuColor: null,
   bbuColorCatId: null,
@@ -717,11 +718,14 @@ function renderBbuCalWeek() {
       col.appendChild(nowLine);
     }
 
-    // Right-click a day column -> create-task menu with the date pre-set
+    // Right-click a day column -> create menu with the hovered date + hour pre-set
     col.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      openBbuDayCreateMenu(e, iso, d);
+      const rect = col.getBoundingClientRect();
+      const y = Math.min(Math.max(e.clientY - rect.top, 0), col.offsetHeight);
+      const mins = Math.min(Math.max(bbuSnapMin(startHour * 60 + (y / HOUR_H) * 60), startHour * 60), endHour * 60 - 15);
+      openBbuDayCreateMenu(e, iso, d, bbuMinToTime(mins));
     });
 
     // Hold left-click and drag DOWN to stretch out a new event (drag start =
@@ -1167,6 +1171,9 @@ function openBbuModal(opts) {
   renderBbuMetaVisibility();
   closeBbuPanels();
   document.getElementById('bbuModalOverlay').classList.add('active');
+  if (opts.openPanel === 'date') document.getElementById('bbuDatePanel').style.display = 'block';
+  else if (opts.openPanel === 'time') bbuClockOpen('start');
+  else if (opts.openPanel === 'end') bbuClockOpen('end');
   requestAnimationFrame(() => {
     document.getElementById('bbuTaskInput').focus();
     descInput.style.height = Math.min(descInput.scrollHeight, 110) + 'px';
@@ -1762,10 +1769,14 @@ function openBbuContextMenu(e, taskId) {
         <button class="bbu-dq" data-due="today" title="Today">${svgSun()}</button>
         <button class="bbu-dq" data-due="tomorrow" title="Tomorrow">${svgSunrise()}</button>
         <button class="bbu-dq" data-due="week" title="Next week">${svgCal7()}</button>
-        <button class="bbu-dq" data-due="custom" title="Custom date">${svgCal()}</button>
+        <button class="bbu-dq" data-due="custom" title="Custom date…">${svgCal()}</button>
         <button class="bbu-dq" data-due="clear" title="Clear date">${svgCalX()}</button>
       </div>
-      <div class="bbu-menu-custom" style="display:none"><input type="date" id="bbuMenuDateInput" value="${t.dueDate || ''}"></div>
+    </div>
+    <div class="bbu-menu-section">
+      <div class="bbu-menu-label"><span>Time</span><span class="bbu-menu-current">${t.time ? bbuTimeOf(t.time) : 'None'}</span></div>
+      <div class="bbu-menu-item" data-act="edit-time">⏱ ${t.time ? 'Edit time…' : 'Set time…'}</div>
+      ${t.type === 'event' ? `<div class="bbu-menu-item" data-act="edit-end">⏱ ${t.endTime ? 'Edit end time…' : 'Set end time…'}</div>` : ''}
     </div>
     <div class="bbu-menu-section">
       <div class="bbu-menu-label"><span>Priority</span></div>
@@ -1781,6 +1792,7 @@ function openBbuContextMenu(e, taskId) {
       </div>
     </div>
     <div class="bbu-menu-section">
+      <div class="bbu-menu-item" data-act="edit">✎ Edit</div>
       <div class="bbu-menu-item" data-act="colour">🎨 Change colour</div>
       <div class="bbu-menu-item" data-act="subtask">${svgPlus()} Add Subtask</div>
       ${t.type === 'event' ? '' : '<div class="bbu-menu-item" data-act="pomodoro">⏱ Add to Pomodoro</div>'}
@@ -1799,22 +1811,21 @@ function openBbuContextMenu(e, taskId) {
   m.querySelectorAll('.bbu-dq').forEach(b => b.addEventListener('click', () => {
     const v = b.dataset.due;
     if (v === 'custom') {
-      const c = m.querySelector('.bbu-menu-custom');
-      const open = c.style.display !== 'none';
-      c.style.display = open ? 'none' : 'block';
-      if (!open) m.querySelector('#bbuMenuDateInput').focus();
+      openBbuModal({ mode: 'edit', editId: state.bbuMenuTaskId, openPanel: 'date' });
+      closeBbuMenu();
       return;
     }
     bbuQuickDue(state.bbuMenuTaskId, v);
     closeBbuMenu();
   }));
-  const di = m.querySelector('#bbuMenuDateInput');
-  if (di) di.addEventListener('change', () => { bbuSetDueDate(state.bbuMenuTaskId, di.value || null); closeBbuMenu(); });
   m.querySelectorAll('.bbu-pq').forEach(b => b.addEventListener('click', () => { bbuSetPriority(state.bbuMenuTaskId, parseInt(b.dataset.prio, 10)); closeBbuMenu(); }));
   m.querySelectorAll('.bbu-mt').forEach(b => b.addEventListener('click', () => { bbuSetType(state.bbuMenuTaskId, b.dataset.type); closeBbuMenu(); }));
   m.querySelectorAll('.bbu-menu-item').forEach(it => it.addEventListener('click', () => {
     const act = it.dataset.act;
-    if (act === 'colour') openBbuColorModal(state.bbuMenuTaskId);
+    if (act === 'edit') openBbuModal({ mode: 'edit', editId: state.bbuMenuTaskId });
+    else if (act === 'edit-time') openBbuModal({ mode: 'edit', editId: state.bbuMenuTaskId, openPanel: 'time' });
+    else if (act === 'edit-end') openBbuModal({ mode: 'edit', editId: state.bbuMenuTaskId, openPanel: 'end' });
+    else if (act === 'colour') openBbuColorModal(state.bbuMenuTaskId);
     else if (act === 'subtask') openBbuModal({ mode: 'subtask', parentId: state.bbuMenuTaskId });
     else if (act === 'pomodoro') pomoAddTask(state.bbuMenuTaskId);
     else if (act === 'pin') bbuTogglePin(state.bbuMenuTaskId);
@@ -1850,6 +1861,7 @@ function openBbuTodoMenu(e, t) {
 function openBbuQuadrantCreateMenu(e, q) {
   const m = document.getElementById('bbuMenu');
   state.bbuMenuCreateDate = null;
+  state.bbuMenuCreateTime = null;
   m.innerHTML = `
     <div class="bbu-menu-header"><span class="bbu-q-dot" style="background:${q.color}"></span><span class="bbu-menu-title">${q.title}</span></div>
     <div class="bbu-menu-section">
@@ -1867,11 +1879,13 @@ function openBbuQuadrantCreateMenu(e, q) {
     closeBbuMenu();
   }));
 }
-function openBbuDayCreateMenu(e, dateISO, date) {
+function openBbuDayCreateMenu(e, dateISO, date, time) {
   const m = document.getElementById('bbuMenu');
   state.bbuMenuCreateDate = dateISO;
+  state.bbuMenuCreateTime = time || null;
+  const header = time ? `${formatDateNice(date)} · ${bbuTimeOf(time)}` : formatDateNice(date);
   m.innerHTML = `
-    <div class="bbu-menu-header"><span class="bbu-q-dot" style="background:var(--accent)"></span><span class="bbu-menu-title">${formatDateNice(date)}</span></div>
+    <div class="bbu-menu-header"><span class="bbu-q-dot" style="background:var(--accent)"></span><span class="bbu-menu-title">${header}</span></div>
     <div class="bbu-menu-section">
       <div class="bbu-menu-item" data-act="create">${svgPlus()} Create task</div>
       <div class="bbu-menu-item" data-act="create-event">${svgCal()} Create event</div>
@@ -1884,9 +1898,9 @@ function openBbuDayCreateMenu(e, dateISO, date) {
   m.style.left = Math.max(4, x) + 'px';
   m.style.top = Math.max(4, y) + 'px';
   m.querySelectorAll('.bbu-menu-item').forEach(it => it.addEventListener('click', () => {
-    if (it.dataset.act === 'create') openBbuModal({ mode: 'create', dueDate: state.bbuMenuCreateDate });
+    if (it.dataset.act === 'create') openBbuModal({ mode: 'create', dueDate: state.bbuMenuCreateDate, time: state.bbuMenuCreateTime });
     else if (it.dataset.act === 'create-event') {
-      const start = bbuNextFullHour();
+      const start = state.bbuMenuCreateTime || bbuNextFullHour();
       openBbuModal({ mode: 'create', dueDate: state.bbuMenuCreateDate, type: 'event', time: start, endTime: bbuAddHour(start) });
     }
     closeBbuMenu();
@@ -1912,6 +1926,7 @@ function closeBbuMenu() {
   m.innerHTML = '';
   state.bbuMenuTaskId = null;
   state.bbuMenuCreateDate = null;
+  state.bbuMenuCreateTime = null;
 }
 document.addEventListener('click', (e) => { if (!e.target.closest('#bbuMenu')) closeBbuMenu(); });
 document.addEventListener('contextmenu', (e) => { if (!e.target.closest('#bbuMenu')) closeBbuMenu(); });
