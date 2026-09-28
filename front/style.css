@@ -387,6 +387,130 @@ html, body {
   color: var(--text-muted);
 }
 
+/* ---- Pomodoro time-box budget ---- */
+.pomo-budget-bar {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.pomo-budget-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.pomo-budget-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+}
+
+.pomo-budget-bar.on .pomo-budget-title {
+  color: var(--accent);
+}
+
+.pomo-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.pomo-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.pomo-switch-track {
+  width: 26px;
+  height: 15px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  position: relative;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.pomo-switch-track::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 0.15s, background 0.15s;
+}
+
+.pomo-switch input:checked + .pomo-switch-track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.pomo-switch input:checked + .pomo-switch-track::after {
+  transform: translateX(11px);
+  background: var(--bg-primary);
+}
+
+.pomo-budget-desc {
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+.pomo-budget-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.pomo-budget-input {
+  width: 64px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 4px 6px;
+  text-align: center;
+}
+
+.pomo-budget-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.pomo-budget-unit {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.pomo-budget-est {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.pomo-view-widget .pomo-budget-input {
+  width: 76px;
+  font-size: 14px;
+}
+
+.pomo-view-widget .pomo-budget-desc {
+  font-size: 10px;
+}
+
 .pomo-time {
   font-family: var(--font-mono);
   font-size: 30px;

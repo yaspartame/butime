@@ -90,7 +90,7 @@ function setBbuCalMode(mode) {
 }
 
 function getPomoSettings() {
-  const d = { workMin: 25, shortBreakMin: 5, longBreakMin: 15, longBreakEvery: 4, sound: true, location: 'view', floatingOverlay: false, historyCollapsed: false };
+  const d = { workMin: 25, shortBreakMin: 5, longBreakMin: 15, longBreakEvery: 4, sound: true, location: 'view', floatingOverlay: false, historyCollapsed: false, budgetEnabled: false, budgetMin: 450 };
   try { return Object.assign({}, d, JSON.parse(localStorage.getItem('butime_pomodoro')) || {}); }
   catch { return d; }
 }

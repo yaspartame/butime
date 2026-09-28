@@ -2122,8 +2122,46 @@ const pomoState = {
   done: false,
   advanceTimer: null,
   sessionStart: null,
+  budgetUsed: 0,
+  curLen: 0,
+  budgetFinished: false,
 };
 let pomoAudioCtx = null;
+
+// ---- Time-box: run the pomodoro for a set total time (focus + breaks) ----
+function pomoBudgetMins() {
+  const v = parseInt(getPomoSettings().budgetMin, 10);
+  return Math.max(1, Math.min(1440, isNaN(v) ? 450 : v));
+}
+function pomoBudgetOn() {
+  return !!getPomoSettings().budgetEnabled;
+}
+function pomoBudgetLeft() {
+  if (!pomoBudgetOn()) return Infinity;
+  return Math.max(0, pomoBudgetMins() * 60 - pomoState.budgetUsed);
+}
+function pomoSessionLen(mode) {
+  const base = pomoNextSeconds(mode);
+  if (!pomoBudgetOn()) return base;
+  return Math.max(0, Math.min(base, pomoBudgetLeft()));
+}
+function pomoBudgetEstimate() {
+  const s = getPomoSettings();
+  const focus = Math.max(1, parseInt(s.workMin, 10) || 25);
+  const brk = Math.max(0, parseInt(s.shortBreakMin, 10) || 0);
+  const n = Math.max(1, Math.ceil(pomoBudgetMins() / (focus + brk)));
+  return `≈ ${n} session${n === 1 ? '' : 's'}`;
+}
+function pomoApplyBudgetUI() {
+  const on = pomoBudgetOn();
+  document.querySelectorAll('.pomo-budget-toggle').forEach(t => { t.checked = on; });
+  document.querySelectorAll('.pomo-budget-bar').forEach(b => b.classList.toggle('on', on));
+  document.querySelectorAll('.pomo-budget-row').forEach(r => { r.style.display = on ? '' : 'none'; });
+  document.querySelectorAll('.pomo-budget-input').forEach(i => { if (document.activeElement !== i) i.value = pomoBudgetMins(); });
+  document.querySelectorAll('.pomo-budget-est').forEach(e => { e.textContent = pomoBudgetEstimate(); });
+}
+pomoState.curLen = pomoSessionLen('focus');
+pomoState.secondsLeft = pomoState.curLen;
 
 function pomoFormatTime(sec) {
   const mm = Math.floor(sec / 60);
@@ -2172,6 +2210,7 @@ function pomoCompleteInterval() {
   pomoState.running = false;
   pomoState.secondsLeft = 0;
   pomoState.done = true;
+  pomoState.budgetUsed += pomoState.curLen || 0;
   let next;
   if (pomoState.mode === 'focus') {
     pomoState.sessionCount++;
@@ -2180,16 +2219,24 @@ function pomoCompleteInterval() {
   } else {
     next = 'focus';
   }
+  // Time-box used up -> end the whole run instead of advancing.
+  if (pomoBudgetOn() && pomoSessionLen(next) <= 0) {
+    pomoState.budgetFinished = true;
+    renderPomodoro();
+    return;
+  }
   // Let the alarm finish before the next session starts
   const waitMs = s.sound ? 2300 : 60;
   clearTimeout(pomoState.advanceTimer);
   pomoState.advanceTimer = setTimeout(() => {
     pomoState.mode = next;
     pomoState.done = false;
-    pomoState.secondsLeft = pomoNextSeconds(pomoState.mode);
+    pomoState.curLen = pomoSessionLen(pomoState.mode);
+    pomoState.secondsLeft = pomoState.curLen;
     if (pomoState.secondsLeft <= 0) {
       pomoState.mode = 'focus';
-      pomoState.secondsLeft = pomoNextSeconds('focus');
+      pomoState.curLen = pomoSessionLen('focus');
+      pomoState.secondsLeft = pomoState.curLen;
     }
     pomoState.running = true;
     pomoState.endTime = Date.now() + pomoState.secondsLeft * 1000;
@@ -2200,7 +2247,16 @@ function pomoCompleteInterval() {
 }
 function pomoStart() {
   clearTimeout(pomoState.advanceTimer);
-  if (pomoState.done) {
+  if (pomoState.budgetFinished) {
+    // A finished time-box starts over as a fresh run.
+    pomoState.budgetFinished = false;
+    pomoState.budgetUsed = 0;
+    pomoState.sessionCount = 0;
+    pomoState.mode = 'focus';
+    pomoState.done = false;
+    pomoState.curLen = pomoSessionLen('focus');
+    pomoState.secondsLeft = pomoState.curLen;
+  } else if (pomoState.done) {
     // Skip the remaining alarm wait and start the next session now
     const s = getPomoSettings();
     if (pomoState.mode === 'focus') {
@@ -2214,7 +2270,10 @@ function pomoStart() {
   if (pomoState.running) {
     pomoState.running = false;
   } else {
-    if (pomoState.secondsLeft <= 0) pomoState.secondsLeft = pomoNextSeconds(pomoState.mode);
+    if (pomoState.secondsLeft <= 0) {
+      pomoState.curLen = pomoSessionLen(pomoState.mode);
+      pomoState.secondsLeft = pomoState.curLen;
+    }
     pomoState.running = true;
     pomoState.endTime = Date.now() + pomoState.secondsLeft * 1000;
     if (pomoState.mode === 'focus') pomoState.sessionStart = Date.now();
@@ -2225,10 +2284,14 @@ function pomoReset() {
   clearTimeout(pomoState.advanceTimer);
   pomoState.running = false;
   pomoState.mode = 'focus';
-  pomoState.secondsLeft = pomoNextSeconds('focus');
+  pomoState.budgetUsed = 0;
+  pomoState.budgetFinished = false;
+  pomoState.curLen = pomoSessionLen('focus');
+  pomoState.secondsLeft = pomoState.curLen;
   pomoState.sessionCount = 0;
   pomoState.done = false;
   pomoState.sessionStart = null;
+  pomoApplyBudgetUI();
   renderPomodoro();
 }
 
@@ -2397,9 +2460,11 @@ function pomoAddTask(taskId) {
 }
 function renderPomodoro() {
   const timeStr = pomoFormatTime(pomoState.secondsLeft);
-  const modeStr = pomoState.done
-    ? (pomoState.mode === 'focus' ? 'FOCUS DONE' : pomoState.mode === 'shortBreak' ? 'BREAK DONE' : 'LONG BREAK DONE')
-    : (pomoState.mode === 'focus' ? 'FOCUS' : pomoState.mode === 'shortBreak' ? 'SHORT BREAK' : 'LONG BREAK');
+  const modeStr = pomoState.budgetFinished
+    ? 'TIME-BOX DONE'
+    : (pomoState.done
+      ? (pomoState.mode === 'focus' ? 'FOCUS DONE' : pomoState.mode === 'shortBreak' ? 'BREAK DONE' : 'LONG BREAK DONE')
+      : (pomoState.mode === 'focus' ? 'FOCUS' : pomoState.mode === 'shortBreak' ? 'SHORT BREAK' : 'LONG BREAK'));
   document.querySelectorAll('.pomo-time').forEach(el => {
     el.textContent = timeStr;
     el.classList.toggle('pomo-break', pomoState.mode !== 'focus');
@@ -2539,6 +2604,45 @@ function initPomodoro() {
   document.querySelectorAll('.pomo-overlay').forEach(b => b.addEventListener('click', pomoToggleOverlay));
   document.querySelectorAll('.pomo-overlay').forEach(b => b.classList.toggle('active', !!getPomoSettings().floatingOverlay));
   if (window.butime && window.butime.toggleOverlay) window.butime.toggleOverlay(!!getPomoSettings().floatingOverlay);
+  // Time-box controls
+  function pomoBudgetRefreshTime() {
+    if (pomoState.running || pomoState.done) return;
+    pomoState.curLen = pomoSessionLen('focus');
+    pomoState.secondsLeft = pomoState.curLen;
+    document.querySelectorAll('.pomo-time').forEach(el => { el.textContent = pomoFormatTime(pomoState.secondsLeft); });
+  }
+  document.querySelectorAll('.pomo-budget-toggle').forEach(t => t.addEventListener('change', () => {
+    const s = getPomoSettings();
+    s.budgetEnabled = t.checked;
+    savePomoSettings(s);
+    pomoState.budgetUsed = 0;
+    pomoState.budgetFinished = false;
+    pomoBudgetRefreshTime();
+    pomoApplyBudgetUI();
+    renderPomodoro();
+  }));
+  document.querySelectorAll('.pomo-budget-input').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const v = parseInt(inp.value, 10);
+      if (isNaN(v)) return;
+      const s = getPomoSettings();
+      s.budgetMin = Math.max(1, Math.min(1440, v));
+      savePomoSettings(s);
+      pomoBudgetRefreshTime();
+      pomoApplyBudgetUI();
+    });
+    inp.addEventListener('blur', () => { inp.value = pomoBudgetMins(); });
+    inp.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const s = getPomoSettings();
+      s.budgetMin = Math.max(1, Math.min(1440, pomoBudgetMins() + (e.deltaY < 0 ? 5 : -5)));
+      savePomoSettings(s);
+      inp.value = s.budgetMin;
+      pomoBudgetRefreshTime();
+      pomoApplyBudgetUI();
+    }, { passive: false });
+  });
+  pomoApplyBudgetUI();
   // Pomodoro history sidebar controls
   const histCollapse = document.getElementById('pomoHistoryCollapse');
   if (histCollapse) {
