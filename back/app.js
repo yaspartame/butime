@@ -22,6 +22,7 @@ let state = {
   bbuColorCatEditing: null,
   bbuClock: null,
   bbuWeekDrag: null,
+  bbuActionsYear: new Date().getFullYear(),
 };
 
 function getMonday(date) {
@@ -144,6 +145,7 @@ function openSettings() {
   const s = getSettings();
   document.getElementById('setAutoStart').checked = !!s.autostart;
   document.getElementById('setWidgetEnabled').checked = !!s.widgetEnabled;
+  document.getElementById('setActionsEnabled').checked = s.actionsEnabled !== false;
   const ca = (s.closeAction === 'quit') ? 'quit' : 'minimize';
   document.querySelectorAll('#closeActionSelector .mode-option').forEach(o => o.classList.toggle('active', o.dataset.closeaction === ca));
   switchView('settings');
@@ -180,6 +182,7 @@ document.getElementById('settingsSaveBtn').addEventListener('click', () => {
   saveSettings({
     autostart: document.getElementById('setAutoStart').checked,
     widgetEnabled: document.getElementById('setWidgetEnabled').checked,
+    actionsEnabled: document.getElementById('setActionsEnabled').checked,
     closeAction,
   });
   if (window.butime && window.butime.setCloseAction) window.butime.setCloseAction(closeAction);
@@ -246,7 +249,7 @@ function esc(t) { const d = document.createElement('div'); d.textContent = t; re
 function openModalById(id) { document.getElementById(id).classList.add('active'); }
 function closeModalById(id) { document.getElementById(id).classList.remove('active'); }
 ['instanceModalOverlay','bbuModalOverlay','bbuColorOverlay','pomoSettingsOverlay','confirmOverlay'].forEach(id => { document.getElementById(id).addEventListener('click', (e) => { if (e.target === document.getElementById(id)) closeModalById(id); }); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeBbuMenu(); closePomoSettings(); ['instanceModalOverlay','bbuModalOverlay','bbuColorOverlay','pomoSettingsOverlay','confirmOverlay'].forEach(id => { if (document.getElementById(id).classList.contains('active')) closeModalById(id); }); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeBbuMenu(); closePomoSettings(); bbuActTipHide(); ['instanceModalOverlay','bbuModalOverlay','bbuColorOverlay','pomoSettingsOverlay','bbuActionsOverlay','confirmOverlay'].forEach(id => { if (document.getElementById(id).classList.contains('active')) closeModalById(id); }); } });
 
 // ---- Custom confirm / alert (replaces the native confirm()/alert() dialogs) ----
 let uiConfirmCallback = null;
@@ -881,6 +884,236 @@ function renderBbuCalOverdue(tasks) {
   strip.appendChild(box);
 }
 
+// ---- Actions history (GitHub-style activity graph above the matrix) ----
+function logAction(type, task, extra) {
+  const list = getActions();
+  list.push(Object.assign({
+    id: genId(),
+    at: Date.now(),
+    type,
+    taskId: task ? task.id : null,
+    name: task ? task.name : '',
+    taskType: task ? (task.type || 'task') : null,
+  }, extra || {}));
+  if (list.length > 10000) list.splice(0, list.length - 10000);
+  saveActions(list);
+}
+function bbuActionData(year) {
+  const map = {};
+  const slot = (iso) => (map[iso] = map[iso] || { created: [], done: [], wontdo: [], focus: [] });
+  getActions().forEach(a => {
+    const dt = new Date(a.at);
+    if (dt.getFullYear() !== year) return;
+    const g = slot(formatDateISO(dt));
+    if (a.type === 'create') g.created.push(a);
+    else if (a.type === 'done') g.done.push(a);
+    else if (a.type === 'wontdo') g.wontdo.push(a);
+  });
+  getPomoHistory().forEach(s => {
+    const dt = new Date(s.start);
+    if (dt.getFullYear() !== year) return;
+    slot(formatDateISO(dt)).focus.push(s);
+  });
+  return map;
+}
+function bbuActionCount(d) {
+  if (!d) return 0;
+  return d.created.length + d.done.length + d.wontdo.length + d.focus.length;
+}
+function bbuActionLevel(n) {
+  if (!n) return 0;
+  if (n <= 1) return 1;
+  if (n <= 3) return 2;
+  if (n <= 6) return 3;
+  return 4;
+}
+function bbuActFocusMin(d) {
+  return d ? d.focus.reduce((a, s) => a + (s.durationMin || 0), 0) : 0;
+}
+function bbuActCreated(d, isEvent) {
+  return d.created.filter(a => (a.taskType === 'event') === isEvent);
+}
+function bbuActionSummaryLines(d) {
+  const lines = [];
+  if (!d) return lines;
+  const events = bbuActCreated(d, true).length;
+  const tasks = d.created.length - events;
+  if (tasks) lines.push(`${tasks} created task${tasks === 1 ? '' : 's'}`);
+  if (events) lines.push(`${events} created event${events === 1 ? '' : 's'}`);
+  if (d.done.length) lines.push(`${d.done.length} marked done`);
+  if (d.wontdo.length) lines.push(`${d.wontdo.length} marked won't do`);
+  if (d.focus.length) lines.push(`${d.focus.length} focus session${d.focus.length === 1 ? '' : 's'} \u00b7 ${fmtPomoMinutes(bbuActFocusMin(d))}`);
+  return lines;
+}
+function bbuActTipHide() {
+  const el = document.getElementById('bbuActTip');
+  if (el) el.style.display = 'none';
+}
+function bbuActTipShow(cell, d) {
+  let el = document.getElementById('bbuActTip');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'bbuActTip';
+    el.className = 'bbu-act-tip';
+    document.body.appendChild(el);
+  }
+  const dt = new Date(cell.dataset.iso + 'T00:00:00');
+  const lines = bbuActionSummaryLines(d);
+  el.innerHTML = `<div class="bbu-act-tip-title">${formatDateNice(dt)}</div>` +
+    (lines.length ? lines.map(l => `<div class="bbu-act-tip-line">${esc(l)}</div>`).join('') : '<div class="bbu-act-tip-line">No actions</div>');
+  el.style.display = 'block';
+  const r = cell.getBoundingClientRect();
+  const w = el.offsetWidth, h = el.offsetHeight;
+  let x = r.left + r.width / 2 - w / 2;
+  let y = r.top - h - 8;
+  if (x < 4) x = 4;
+  if (x + w > window.innerWidth - 4) x = window.innerWidth - w - 4;
+  if (y < 4) y = r.bottom + 8;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+}
+function openBbuActionsModal(iso, year) {
+  const data = bbuActionData(year);
+  const d = data[iso];
+  if (!d || !bbuActionCount(d)) return;
+  const dt = new Date(iso + 'T00:00:00');
+  const focusMin = bbuActFocusMin(d);
+  const total = bbuActionCount(d);
+  document.getElementById('bbuActModalTitle').textContent = formatDateNice(dt).toUpperCase();
+  const row = (icon, name, meta) => `<div class="bbu-act-row"><span class="bbu-act-icon">${icon}</span><span class="bbu-act-name">${esc(name || 'Untitled')}</span>${meta ? `<span class="bbu-act-meta">${esc(meta)}</span>` : ''}</div>`;
+  const sec = (title, items, render) => items.length ? `<div class="bbu-act-sec"><div class="bbu-act-sec-title">${title} <span class="bbu-act-sec-count">${items.length}</span></div>${items.map(render).join('')}</div>` : '';
+  let html = `<div class="bbu-act-modal-sum">${total} action${total === 1 ? '' : 's'}${focusMin ? ' \u00b7 ' + fmtPomoMinutes(focusMin) + ' focused' : ''}</div>`;
+  html += sec('CREATED TASKS', bbuActCreated(d, false), a => row('\u25a2', a.name));
+  html += sec('CREATED EVENTS', bbuActCreated(d, true), a => row('\u25a4', a.name));
+  html += sec('MARKED DONE', d.done, a => row('\u2713', a.name));
+  html += sec("MARKED WON'T DO", d.wontdo, a => row('\u26d4', a.name));
+  html += sec('FOCUS SESSIONS', d.focus, s => row('\ud83d\udd52', s.taskName || 'Unlabeled', `${pomoTimeHH(s.start)} - ${pomoTimeHH(s.end)} \u00b7 ${s.durationMin || 0} m`));
+  if (focusMin) html += `<div class="bbu-act-total">Total focus: ${fmtPomoMinutes(focusMin)}</div>`;
+  document.getElementById('bbuActModalBody').innerHTML = html;
+  openModalById('bbuActionsOverlay');
+}
+function bbuActionYearRange() {
+  const nowYear = new Date().getFullYear();
+  const years = [];
+  const push = (t) => { const d = new Date(t); if (!isNaN(d.getTime())) years.push(d.getFullYear()); };
+  getActions().forEach(a => push(a.at));
+  getPomoHistory().forEach(s => push(s.start));
+  const min = years.length ? Math.min(nowYear, ...years) : nowYear;
+  return { min, max: nowYear };
+}
+function renderBbuActions() {
+  const host = document.getElementById('bbuActions');
+  if (!host) return;
+  bbuActTipHide();
+  const enabled = getSettings().actionsEnabled !== false;
+  const range = bbuActionYearRange();
+  let year = state.bbuActionsYear || range.max;
+  if (year < range.min) year = range.min;
+  if (year > range.max) year = range.max;
+  state.bbuActionsYear = year;
+  const data = bbuActionData(year);
+  let total = 0;
+  Object.keys(data).forEach(k => { total += bbuActionCount(data[k]); });
+  host.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'bbu-actions-head';
+  head.innerHTML = `<span class="bbu-actions-title">ACTIONS</span>
+    <span class="bbu-actions-total">${total} action${total === 1 ? '' : 's'} in ${year}</span>
+    <span class="bbu-actions-spacer"></span>
+    <button class="bbu-actions-nav" data-dir="-1" title="Previous year"${year <= range.min ? ' disabled' : ''}>\u27e8</button>
+    <span class="bbu-actions-year">${year}</span>
+    <button class="bbu-actions-nav" data-dir="1" title="Next year"${year >= range.max ? ' disabled' : ''}>\u27e9</button>
+    <label class="toggle-row bbu-actions-switch" title="Show actions history">
+      <input type="checkbox" class="toggle-input" id="bbuActionsToggle">
+      <span class="toggle-switch"></span>
+    </label>`;
+  host.appendChild(head);
+  const toggle = head.querySelector('#bbuActionsToggle');
+  toggle.checked = enabled;
+  toggle.addEventListener('change', () => {
+    const s = getSettings();
+    s.actionsEnabled = toggle.checked;
+    saveSettings(s);
+    renderBbuActions();
+  });
+  head.querySelectorAll('.bbu-actions-nav').forEach(b => b.addEventListener('click', () => {
+    const next = year + parseInt(b.dataset.dir, 10);
+    if (next < range.min || next > range.max) return;
+    state.bbuActionsYear = next;
+    renderBbuActions();
+  }));
+  if (!enabled) return;
+
+  const body = document.createElement('div');
+  body.className = 'bbu-actions-body';
+  const scroll = document.createElement('div');
+  scroll.className = 'bbu-actions-scroll';
+  const inner = document.createElement('div');
+  inner.className = 'bbu-act-inner';
+
+  const first = new Date(year, 0, 1);
+  const last = new Date(year, 11, 31);
+  const start = getMonday(first);
+  const days = Math.ceil((Math.round((last - start) / 86400000) + 1) / 7) * 7;
+  const cols = days / 7;
+  const months = document.createElement('div');
+  months.className = 'bbu-act-months';
+  months.style.width = (cols * 14 - 3) + 'px';
+  const frame = document.createElement('div');
+  frame.className = 'bbu-act-frame';
+  const dayLab = document.createElement('div');
+  dayLab.className = 'bbu-act-days';
+  ['Mon', '', 'Wed', '', 'Fri', '', ''].forEach(t => {
+    const s = document.createElement('span');
+    s.textContent = t;
+    dayLab.appendChild(s);
+  });
+  const grid = document.createElement('div');
+  grid.className = 'bbu-act-grid';
+  grid.style.gridTemplateColumns = `repeat(${cols}, 11px)`;
+  for (let i = 0; i < days; i++) {
+    const d = new Date(start.getTime() + i * 86400000);
+    const iso = formatDateISO(d);
+    const cell = document.createElement('div');
+    cell.className = 'bbu-act-cell';
+    if (d.getFullYear() !== year) {
+      cell.classList.add('outside');
+    } else {
+      const n = bbuActionCount(data[iso]);
+      cell.classList.add('lvl' + bbuActionLevel(n));
+      if (n) { cell.dataset.iso = iso; cell.classList.add('has'); }
+      if (d.getDate() === 1) {
+        const lab = document.createElement('span');
+        lab.className = 'bbu-act-month';
+        lab.textContent = MONTH_SHORT[d.getMonth()];
+        lab.style.left = Math.floor(i / 7) * 14 + 'px';
+        months.appendChild(lab);
+      }
+    }
+    grid.appendChild(cell);
+  }
+  grid.addEventListener('mouseover', (e) => {
+    const c = e.target.closest('.bbu-act-cell.has');
+    if (c) bbuActTipShow(c, data[c.dataset.iso]);
+  });
+  grid.addEventListener('mouseout', (e) => { if (e.target.closest('.bbu-act-cell')) bbuActTipHide(); });
+  grid.addEventListener('click', (e) => {
+    const c = e.target.closest('.bbu-act-cell.has');
+    if (c) openBbuActionsModal(c.dataset.iso, year);
+  });
+  frame.appendChild(dayLab);
+  frame.appendChild(grid);
+  inner.appendChild(months);
+  inner.appendChild(frame);
+  scroll.appendChild(inner);
+  body.appendChild(scroll);
+  const legend = document.createElement('div');
+  legend.className = 'bbu-actions-legend';
+  legend.innerHTML = 'Less' + [0, 1, 2, 3, 4].map(l => `<span class="bbu-act-cell lvl${l}"></span>`).join('') + 'More';
+  body.appendChild(legend);
+  host.appendChild(body);
+}
+
 function renderBbuMatrix() {
   const wrap = document.getElementById('bbuMatrix');
   const tasks = getBbuTasks();
@@ -933,6 +1166,7 @@ function renderBbuMatrix() {
     wrap.appendChild(quad);
   });
   renderBbuWontDo();
+  renderBbuActions();
 }
 
 function renderBbuWontDo() {
@@ -1366,9 +1600,15 @@ function bbuModalSave() {
     }
   } else if (m.mode === 'subtask' && m.parentId) {
     const p = tasks.find(x => x.id === m.parentId);
-    if (p) tasks.push({ id: genId(), name, parentId: p.id, urgent: p.urgent, important: p.important, priority: p.priority, dueDate: p.dueDate, time, endTime, type: m.type, color: m.color || null, colorCategory: m.colorCategory || null, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now });
+    if (p) {
+      const created = { id: genId(), name, parentId: p.id, urgent: p.urgent, important: p.important, priority: p.priority, dueDate: p.dueDate, time, endTime, type: m.type, color: m.color || null, colorCategory: m.colorCategory || null, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now };
+      tasks.push(created);
+      logAction('create', created);
+    }
   } else {
-    tasks.push({ id: genId(), name, parentId: null, urgent, important, priority, dueDate, time, endTime, type: m.type, color: m.color || null, colorCategory: m.colorCategory || null, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now });
+    const created = { id: genId(), name, parentId: null, urgent, important, priority, dueDate, time, endTime, type: m.type, color: m.color || null, colorCategory: m.colorCategory || null, description: description || '', completed: false, pinned: false, wontDo: false, createdAt: now };
+    tasks.push(created);
+    logAction('create', created);
   }
   saveBbuTasks(tasks);
   closeBbuModal();
@@ -1710,7 +1950,7 @@ function bbuToggleWontDo(taskId) {
   const t = tasks.find(x => x.id === taskId);
   if (!t) return;
   t.wontDo = !t.wontDo;
-  if (t.wontDo) t.completed = false;
+  if (t.wontDo) { t.completed = false; logAction('wontdo', t); }
   saveBbuTasks(tasks);
   renderBbu();
 }
@@ -1720,7 +1960,7 @@ function bbuToggleComplete(taskId) {
   if (!t || t.type === 'event') return; // events can't be completed
   const target = !t.completed;
   t.completed = target;
-  if (target) t.wontDo = false;
+  if (target) { t.wontDo = false; logAction('done', t); }
   bbuDescendants(tasks, taskId).forEach(d => {
     d.completed = target;
     if (target) d.wontDo = false;
@@ -2676,6 +2916,10 @@ function initPomodoro() {
   applyPomoLocation();
   renderPomodoro();
 }
+
+document.getElementById('bbuActModalClose').addEventListener('click', () => closeModalById('bbuActionsOverlay'));
+document.getElementById('bbuActionsOverlay').addEventListener('click', (e) => { if (e.target.id === 'bbuActionsOverlay') closeModalById('bbuActionsOverlay'); });
+window.addEventListener('scroll', bbuActTipHide, true);
 
 migrateBbuData();
 initBbuPanels();

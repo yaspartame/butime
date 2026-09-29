@@ -24,8 +24,15 @@ function getSettings() {
   try { return Object.assign({}, getDefaultSettings(), JSON.parse(localStorage.getItem('butime_settings')) || {}); }
   catch { return getDefaultSettings(); }
 }
-function getDefaultSettings() { return { closeAction: 'minimize', autostart: true, widgetEnabled: true }; }
+function getDefaultSettings() { return { closeAction: 'minimize', autostart: true, widgetEnabled: true, actionsEnabled: true }; }
 function saveSettings(s) { localStorage.setItem('butime_settings', JSON.stringify(s)); }
+
+/* ---- Actions history (global, shared across instances) ---- */
+function getActions() {
+  try { return JSON.parse(localStorage.getItem('butime_actions')) || []; }
+  catch { return []; }
+}
+function saveActions(list) { localStorage.setItem('butime_actions', JSON.stringify(list)); }
 
 // BBU Data layer
 // They do not share the same data as legacy
@@ -127,6 +134,8 @@ function exportAllData() {
     bbuView: getBbuView(),
     bbuCalMode: getBbuCalMode(),
     pomodoro: getPomoSettings(),
+    actions: getActions(),
+    pomoHistory: getPomoHistory(),
     bbuTasks: getBbuTasks(),
   };
   return JSON.stringify(payload, null, 2);
@@ -158,6 +167,8 @@ function importAllData(jsonStr) {
   if (payload.bbuView) setBbuView(payload.bbuView);
   if (payload.bbuCalMode) setBbuCalMode(payload.bbuCalMode);
   if (payload.pomodoro) savePomoSettings(payload.pomodoro);
+  saveActions(Array.isArray(payload.actions) ? payload.actions : []);
+  savePomoHistory(Array.isArray(payload.pomoHistory) ? payload.pomoHistory : []);
   if (payload.bbuInstancesData) {
     Object.keys(payload.bbuInstancesData).forEach(id => {
       saveBbuTasksForInstance(id, payload.bbuInstancesData[id] || []);
