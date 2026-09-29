@@ -115,6 +115,16 @@
         </div>
 
         <div class="settings-section">
+          <h3 class="settings-section-title">ACTIONS HISTORY</h3>
+          <p class="settings-desc">A GitHub-style activity graph shown above the matrix: tasks and events created, items marked done or won't do, and pomodoro focus sessions.</p>
+          <label class="toggle-row">
+            <span class="toggle-label">Show actions history on the matrix</span>
+            <input type="checkbox" class="toggle-input" id="setActionsEnabled">
+            <span class="toggle-switch"></span>
+          </label>
+        </div>
+
+        <div class="settings-section">
           <h3 class="settings-section-title">EXPORT / IMPORT</h3>
           <p class="settings-desc">Export all instances and settings as a JSON file, or import a previously exported file to restore everything.</p>
           <div class="settings-row">
@@ -135,6 +145,7 @@
   <!-- BBU MATRIX VIEW -->
   <div class="view-panel" id="viewBbuMatrix" style="display:none">
     <div class="bbu-matrix-wrap" id="bbuMatrixWrap">
+      <div class="bbu-actions" id="bbuActions"></div>
       <div class="bbu-matrix" id="bbuMatrix"></div>
       <div class="bbu-wontdo" id="bbuWontDo"></div>
     </div>
@@ -272,6 +283,17 @@
         <button class="modal-close" id="pomoSettingsClose">✕</button>
       </div>
       <div class="modal-body" id="pomoSettingsModalBody"></div>
+    </div>
+  </div>
+
+  <!-- ===== ACTIONS DETAIL MODAL ===== -->
+  <div class="modal-overlay" id="bbuActionsOverlay">
+    <div class="modal bbu-act-modal">
+      <div class="modal-header">
+        <span class="modal-title" id="bbuActModalTitle">ACTIONS</span>
+        <button class="modal-close" id="bbuActModalClose">✕</button>
+      </div>
+      <div class="modal-body" id="bbuActModalBody"></div>
     </div>
   </div>
 
