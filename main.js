@@ -145,7 +145,10 @@ function createWidgetWindow(id, instanceId) {
     transparent: true,
     resizable: true,
     skipTaskbar: true,
-    focusable: false,
+    // On Linux, focusable:false makes the window stop interacting with the
+    // window manager: it is pinned above everything and cannot be dragged.
+    // Keep non-focusable widgets on Windows/macOS; let the WM manage it on Linux.
+    focusable: process.platform === 'linux',
     alwaysOnTop: false,
     hasShadow: false,
     fullscreenable: false,
