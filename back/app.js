@@ -2934,7 +2934,7 @@ if (window.butime && window.butime.setCloseAction) {
   const s = getSettings();
   window.butime.setCloseAction(s.closeAction === 'quit' ? 'quit' : 'minimize');
 }
-// Tell the Electron main process whether butime should launch at Windows startup.
+// Tell the Electron main process whether butime should launch at login.
 if (window.butime && window.butime.setAutoStart) {
   const s = getSettings();
   window.butime.setAutoStart(!!s.autostart);

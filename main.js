@@ -47,6 +47,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'butime',
+    icon: path.join(__dirname, 'build', 'icon.png'),
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
@@ -338,9 +339,37 @@ function broadcastWidgetList() {
 ipcMain.on('app:closeAction', (_e, action) => {
   closeAction = (action === 'quit') ? 'quit' : 'minimize';
 });
-// Launch automatically when the user signs in to Windows
+// Launch at login. Windows/macOS use the native login item; Linux uses the
+// freedesktop autostart directory (~/.config/autostart/butime.desktop).
+function linuxAutostartFile() {
+  return path.join(app.getPath('appData'), 'autostart', 'butime.desktop');
+}
+function setLinuxAutostart(enable) {
+  const file = linuxAutostartFile();
+  try {
+    if (!enable) {
+      if (fs.existsSync(file)) fs.unlinkSync(file);
+      return;
+    }
+    // Inside an AppImage process.execPath points at the temporary mount, so
+    // prefer the original AppImage path exposed by the runtime.
+    const exec = process.env.APPIMAGE || process.execPath;
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, [
+      '[Desktop Entry]',
+      'Type=Application',
+      'Name=butime',
+      'Comment=Offline time-management app',
+      `Exec="${exec}"`,
+      'Terminal=false',
+      'X-GNOME-Autostart-enabled=true',
+      ''
+    ].join('\n'));
+  } catch (err) { console.error('autostart:', err); }
+}
 ipcMain.on('app:autostart', (_e, enable) => {
-  app.setLoginItemSettings({ openAtLogin: !!enable });
+  if (process.platform === 'linux') setLinuxAutostart(!!enable);
+  else app.setLoginItemSettings({ openAtLogin: !!enable });
 });
 
 app.on('before-quit', () => {
