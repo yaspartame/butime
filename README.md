@@ -82,13 +82,23 @@ npm install
 npm start
 ```
 
-### Build a Windows installer
+### Build installers
+
+Windows (run on Windows):
 
 ```bash
-npm run dist
+npm run dist:win
 ```
 
-The installer is written to `dist/`.
+Linux (run on Linux — AppImage + `.deb`):
+
+```bash
+npm run dist:linux
+```
+
+`npm run dist` builds for the current platform. Artifacts are written to `dist/`.
+
+On Linux Mint, the AppImage runtime needs FUSE (`sudo apt install libfuse2t64` on Mint 22, `libfuse2` on Mint 21).
 
 ## License
 
