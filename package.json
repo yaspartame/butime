@@ -8,7 +8,9 @@
   "license": "GPL-3.0",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux"
   },
   "devDependencies": {
     "electron": "^31.0.0",
@@ -17,10 +19,18 @@
   "build": {
     "appId": "com.meow.butime",
     "productName": "butime",
-    "files": ["main.js", "front/**/*", "back/**/*", "build/tray.png"],
+    "files": ["main.js", "front/**/*", "back/**/*", "build/tray.png", "build/icon.png"],
     "win": {
       "target": ["nsis"],
       "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Utility",
+      "icon": "build/icon.png",
+      "maintainer": "Miyakazine <yaspartame@users.noreply.github.com>",
+      "synopsis": "Offline time-management app",
+      "description": "Offline time-management app with Eisenhower matrix, calendar, pomodoro and desktop widgets."
     },
     "nsis": {
       "oneClick": true,
